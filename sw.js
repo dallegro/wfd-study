@@ -1,4 +1,4 @@
-const CACHE = 'wfd-pwa-v3-cbb18b1d76';
+const CACHE = 'wfd-pwa-v5-35ac54bcaf';
 const PREFIX = 'wfd-pwa-';
 const APP = new URL('./index.html', self.registration.scope).href;
 const ROOT = new URL('./', self.registration.scope).href;
