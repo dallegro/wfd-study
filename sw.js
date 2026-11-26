@@ -1,4 +1,17 @@
-const CACHE = 'wfd-pwa-v5-35ac54bcaf';
+/*
+    ╭──────────────────────────────────────────────────────────╮
+    │      ▂ ▅ █ ▅ ▂    wfd.                                   │
+    │                   WRITE FROM DICTATION                   │
+    ╰──────────────────────────────────────────────────────────╯
+
+    Designed & developed by Daseul Kim (김다슬)
+    @ektmfdl  /  github.com/dallegro
+    Built for learners, by a learner.
+
+    Independent practice tool · Not an official Pearson service.
+    Learning materials and audio: Banditbul Education (Nov 19).
+*/
+const CACHE = 'wfd-pwa-v7-layout-bc2effe636';
 const PREFIX = 'wfd-pwa-';
 const APP = new URL('./index.html', self.registration.scope).href;
 const ROOT = new URL('./', self.registration.scope).href;
