@@ -1,6 +1,7 @@
 /* wfd. — versioned offline cache. Original recordings remain byte-identical. */
 const VERSION = '1.1.0';
-const CACHE = `wfd-pwa-refactor-${VERSION}`;
+// Cache revision is independent of the unchanged versioned asset directory.
+const CACHE = 'wfd-pwa-refactor-1.1.1';
 const ROOT = new URL('./', self.registration.scope).href;
 const url = path => new URL(path, ROOT).href;
 const APP = url('index.html');
