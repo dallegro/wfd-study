@@ -54,7 +54,8 @@ with sync_playwright() as p:
     page.locator('.read-only-history summary').first.click()
     assert page.locator('.history-attempt').count() == 1
     assert page.locator('#reviewSession').is_hidden()
-    page.locator('#reviewClose').click()
+    page.locator('#studyHome').click()
+    assert page.locator('#reviewDialog').is_hidden()
     assert page.locator('#number').get_attribute('data-index') == '2'
     page.locator('#examOpen').click()
     assert page.locator('#examDialog').is_visible()
