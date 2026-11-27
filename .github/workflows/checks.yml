@@ -20,7 +20,11 @@ jobs:
           python-version: '3.12'
       - run: pip install playwright==1.57.0 && python -m playwright install --with-deps chromium
       - run: |
-          python -m http.server 8000 > /tmp/wfd-http.log 2>&1 &
+          python tests/http_server.py 8000 > /tmp/wfd-http.log 2>&1 &
+          for i in {1..20}; do curl -fs http://localhost:8000/ > /dev/null && break; sleep 0.2; done
+          curl -fsS -H 'Range: bytes=0-9' -D /tmp/wfd-range-headers http://localhost:8000/audio/001.mp3 -o /tmp/wfd-range-bytes
+          grep -q '206 Partial Content' /tmp/wfd-range-headers
+          test "$(wc -c < /tmp/wfd-range-bytes)" -eq 10
           python tests/browser_smoke.py
           python tests/browser_low_end.py
 
@@ -36,8 +40,24 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install playwright==1.57.0 && python -m playwright install --with-deps ${{ matrix.browser }}
+      - name: Configure Firefox audio output
+        if: matrix.browser == 'firefox'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pulseaudio pulseaudio-utils
+          pulseaudio --start --exit-idle-time=-1
+          pactl info
+          pactl load-module module-null-sink sink_name=wfd_ci_audio
+          pactl set-default-sink wfd_ci_audio
+          pactl set-sink-mute wfd_ci_audio 0
+          pactl list short sinks
+          test "$(pactl get-default-sink)" = wfd_ci_audio
       - run: |
-          python -m http.server 8000 > /tmp/wfd-http.log 2>&1 &
+          python tests/http_server.py 8000 > /tmp/wfd-http.log 2>&1 &
+          for i in {1..20}; do curl -fs http://localhost:8000/ > /dev/null && break; sleep 0.2; done
+          curl -fsS -H 'Range: bytes=0-9' -D /tmp/wfd-range-headers http://localhost:8000/audio/001.mp3 -o /tmp/wfd-range-bytes
+          grep -q '206 Partial Content' /tmp/wfd-range-headers
+          test "$(wc -c < /tmp/wfd-range-bytes)" -eq 10
           python tests/browser_playback.py
         env:
           WFD_BROWSER: ${{ matrix.browser }}

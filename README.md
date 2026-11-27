@@ -78,11 +78,13 @@ Background playback and automatic transitions depend on browser and operating sy
 
 Tap a word in the transcript or supported dictation feedback to hear the corresponding part of the original recording.
 
-At normal playback speed, supported browsers prepare only the current sentence and use Web Audio for responsive word playback.
+At normal playback speed, Web Audio can use the current decoded sentence for low-latency word playback, including the first tap when decoding is ready. The optional Audio Session API configures playback output where supported; lack of that API alone does not disable Web Audio on desktop or Android. No full-sentence playback or warm-up audio is required.
 
 The original media-element playback method remains available when:
 
+- An Apple mobile environment is detected but the playback audio category cannot be configured (silent-switch compatibility exception). Device identification is a best-effort heuristic.
 - The decoded audio is not yet ready.
+- AudioContext output is still initializing. If startup exceeds the existing 350 ms bound, that word uses native playback without cancelling the pending output initialization. Later words reuse the context when ready.
 - Web Audio is unavailable or fails.
 - A non-default playback speed is selected.
 
@@ -148,7 +150,7 @@ No framework, backend, or production build step is required.
 ```text
 wfd-study/
 ├── app/
-│   └── v1.4.2/
+│   └── v1.4.3/
 │       ├── src/
 │       │   ├── main.js
 │       │   ├── study.js
@@ -190,7 +192,7 @@ Requires Node.js 22 for automated tests.
 Run locally:
 
 ```sh
-python3 -m http.server 8000
+python3 tests/http_server.py 8000
 ```
 
 Open `http://localhost:8000`.
@@ -203,7 +205,7 @@ npm test
 
 ### Testing
 
-The current release includes 31 automated core tests covering:
+The current release includes 41 automated core tests covering:
 
 - Dictation scoring and data integrity.
 - Study planning and local storage.

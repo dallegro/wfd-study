@@ -1,5 +1,5 @@
 /* wfd. — versioned offline cache. Original recordings remain byte-identical. */
-const VERSION = '1.4.2';
+const VERSION = '1.4.3';
 const CACHE = `wfd-pwa-refactor-${VERSION}`;
 const ROOT = new URL('./', self.registration.scope).href;
 const url = path => new URL(path, ROOT).href;
