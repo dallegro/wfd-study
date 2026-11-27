@@ -1,6 +1,18 @@
 
 # Changelog
 
+## 1.4.2 — Unreleased
+
+### Fixed
+- Reduced repeated word-playback seeking with a bounded, current-sentence Web Audio buffer.
+- Cancelled prior word audio on rapid taps, navigation and playback transitions.
+- Preserved media-element fallback for unavailable decoding, unsupported browsers and non-default speeds.
+- Kept the existing waveform, word timing, source recordings and full-sentence playback.
+
+### Tests
+- Added decoded-buffer lifecycle and fallback tests plus cross-browser word playback regression checks.
+- Actual mobile tap-to-audio latency remains to be measured.
+
 ## 1.4.1 — Unreleased
 
 ### Changed

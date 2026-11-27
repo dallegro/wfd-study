@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const root = path.resolve(__dirname,'..');
-const src = path.join(root,'app/v1.4.1/src');
+const src = path.join(root,'app/v1.4.2/src');
 const {alignDictation} = require(path.join(src,'scoring.js'));
 test('exact sentence, case and punctuation',()=>{ const g=alignDictation('A useful structure.','a useful structure'); assert.equal(g.correct,3);assert.equal(g.perfect,true); });
 test('omission',()=>{ const g=alignDictation('a good structure','a structure');assert.equal(g.correct,2);assert.equal(g.missing,1);assert.equal(g.perfect,false); });
@@ -17,7 +17,7 @@ const sw=fs.readFileSync(path.join(root,'sw.js'),'utf8');
 function worker(){const events={};const bytes=Uint8Array.from([0,1,2,3,4,5]);const fakeCache={match:async()=>new Response(bytes,{headers:{'Content-Type':'audio/mpeg'}})};const c=vm.createContext({URL,Request,Response,Set,Array,Number,Math,caches:{has:async()=>true,open:async()=>fakeCache},fetch:async()=>{throw new Error('unexpected network')},self:{registration:{scope:'https://example.test/wfd-study/'},location:{origin:'https://example.test'},addEventListener:(name,fn)=>events[name]=fn}});vm.runInContext(sw,c);return c;}
 test('offline MP3 range response',async()=>{const c=worker();const r=await vm.runInContext(`serveAsset(new Request('https://example.test/wfd-study/audio/001.mp3',{headers:{Range:'bytes=1-3'}}), AUDIO[0])`,c);assert.equal(r.status,206);assert.equal(r.headers.get('Content-Range'),'bytes 1-3/6');assert.deepEqual([...new Uint8Array(await r.arrayBuffer())],[1,2,3]);});
 test('offline suffix and invalid ranges',async()=>{const c=worker();let r=await vm.runInContext(`serveAsset(new Request(AUDIO[0],{headers:{Range:'bytes=-2'}}), AUDIO[0])`,c);assert.deepEqual([...new Uint8Array(await r.arrayBuffer())],[4,5]);r=await vm.runInContext(`serveAsset(new Request(AUDIO[0],{headers:{Range:'bytes=6-'}}), AUDIO[0])`,c);assert.equal(r.status,416);});
-test('every service worker precache path exists',()=>{const c=worker();const paths=vm.runInContext('[...assets]',c);assert.equal(paths.length,216);for(const u of paths)assert.ok(fs.existsSync(path.join(root,new URL(u).pathname.replace('/wfd-study/',''))),u);});
+test('every service worker precache path exists',()=>{const c=worker();const paths=vm.runInContext('[...assets]',c);assert.equal(paths.length,217);for(const u of paths)assert.ok(fs.existsSync(path.join(root,new URL(u).pathname.replace('/wfd-study/',''))),u);});
 
 const {isValidGoal,getDayCount,getDayRange,getResumeIndex}=require(path.join(src,'study-plan.js'));
 const {readStored,writeStored}=require(path.join(src,'storage.js'));
@@ -124,7 +124,7 @@ test('offline cache install downloads only app shell',async()=>{
   const c=worker();
   await vm.runInContext("globalThis.downloaded=[]; caches.open=async()=>({addAll:async reqs=>downloaded.push(...reqs.map(r=>r.url))})",c);
   await vm.runInContext('precache()',c);
-  assert.equal(vm.runInContext('downloaded.length',c),25);
+  assert.equal(vm.runInContext('downloaded.length',c),26);
   assert.equal(vm.runInContext('downloaded.some(url=>AUDIO.includes(url))',c),false);
 });
 test('offline audio preparation reuses cached media and resumes partial download',async()=>{
@@ -205,4 +205,60 @@ test('worker adjusts bounded download batches without overriding restricted mode
   assert.equal(vm.runInContext('nextBatchSize(8,8,2000)',c),4);
   assert.equal(vm.runInContext('nextBatchSize(2,2,100)',c),2);
   assert.equal(vm.runInContext('nextBatchSize(4,8,1000)',c),4);
+});
+
+const {createWordAudio}=require(path.join(src,'word-audio.js'));
+function wordAudioFixture(){
+  const timers=new Map(),sources=[],decodes=[],requests=[];
+  let next=0,clock=0;
+  const setTimer=(fn)=>{const key=++next;timers.set(key,fn);return key;};
+  const clearTimer=key=>timers.delete(key);
+  class Decoder{
+    decodeAudioData(bytes,resolve){decodes.push(bytes);resolve({duration:5});}
+  }
+  class Context{
+    state='running';
+    get currentTime(){return clock;}
+    destination={};
+    createBufferSource(){
+      const source={connect(){},disconnect(){},start(...args){this.args=args;},stop(){this.stopped=true;}};
+      sources.push(source);return source;
+    }
+  }
+  const engine=createWordAudio({AudioContext:Context,OfflineAudioContext:Decoder,
+    fetchAudio:async(url,options)=>{requests.push({url,signal:options.signal});return {ok:true,arrayBuffer:async()=>new ArrayBuffer(8)};},
+    setTimer,clearTimer});
+  async function prepare(){engine.prepare();const [key,fn]=timers.entries().next().value;timers.delete(key);await fn();}
+  return {engine,prepare,sources,decodes,requests,timers,setClock:value=>{clock=value;}};
+}
+test('decoded words use original buffer offsets, replace active source and avoid repeated decoding',async()=>{
+  const f=wordAudioFixture();const e=f.engine;
+  e.select('one');await f.prepare();
+  assert.equal(e.ready,true);
+  let ended=0;const onEnd=()=>ended++;
+  assert.equal(e.play({from:1,to:1.5,rate:1,onEnd,onFallback:()=>assert.fail()}),true);
+  assert.deepEqual(f.sources[0].args,[0,1,0.5]);
+  f.setClock(0.2);assert.ok(Math.abs(e.position()-1.2)<1e-8);
+  const stale=f.sources[0].onended;
+  assert.equal(e.play({from:2,to:2.5,rate:1,onEnd,onFallback:()=>assert.fail()}),true);
+  assert.equal(f.sources[0].stopped,true);stale();assert.equal(ended,0);
+  f.sources[1].onended();assert.equal(ended,1);
+  assert.equal(e.position(),null);assert.equal(f.requests.length,1);assert.equal(f.decodes.length,1);
+});
+test('word audio releases previous sentence and preserves non-default speed fallback',async()=>{
+  const f=wordAudioFixture(),e=f.engine;
+  e.select('one');await f.prepare();
+  const callbacks={onEnd(){},onFallback(){}};
+  assert.equal(e.play({from:0,to:1,rate:0.8,...callbacks}),false);
+  assert.equal(e.play({from:0,to:1,rate:1,...callbacks}),true);
+  e.select('two');assert.equal(f.sources[0].stopped,true);
+  assert.equal(e.ready,false);assert.equal(e.play({from:0,to:1,rate:1,...callbacks}),false);
+  await f.prepare();assert.equal(e.ready,true);assert.equal(f.requests.length,2);
+});
+test('unsupported and failed word audio preparation safely fall back',async()=>{
+  const e=createWordAudio({fetchAudio:()=>assert.fail()});
+  e.select('one');e.prepare();
+  assert.equal(e.play({from:0,to:1,rate:1}),false);
+  const f=wordAudioFixture();f.engine.select('one');f.engine.prepare();
+  f.engine.select('two');assert.equal(f.timers.size,0);assert.equal(f.engine.ready,false);
 });
