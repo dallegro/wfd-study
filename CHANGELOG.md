@@ -1,13 +1,27 @@
 
 # Changelog
 
-## 1.4.0 — Unreleased
+## [1.4.0] - 2026-11-27
 
-- Add optional OS media controls for practice playback, with neutral sentence-number metadata.
-- Request playback audio-session behavior where supported.
-- Recover overdue repeat transitions on foreground return without overriding an explicit pause.
-- Protect dictation drafts and exam playback from lock-screen navigation.
-- Add playback regression checks for Chromium, Firefox and WebKit. Physical-device background playback still depends on the browser and OS.
+### Added
+- Media Session integration for system media controls.
+- Audio Session support where available.
+- Lock-screen playback metadata and sentence navigation.
+
+### Fixed
+- Improved recovery from interrupted playback and delayed repeat transitions.
+- Protected dictation drafts from external navigation.
+- Isolated exam playback from practice media controls.
+
+### Tests
+- Expanded core test coverage from 18 to 20 tests.
+- Added cross-browser playback regression tests.
+- Passed Chromium, Firefox, and WebKit CI checks.
+
+### Compatibility
+- Preserved existing learning records, preferences, and recordings.
+- Retained playback support for browsers without media session APIs.
+- Background playback remains subject to browser and operating system restrictions.
 
 ## [1.3.0] - 2026-11-27
 
@@ -66,6 +80,7 @@
 - Multilingual interface.
 - Offline PWA support.
 
+[1.4.0]: https://github.com/dallegro/wfd-study/releases/tag/v1.4.0
 [1.3.0]: https://github.com/dallegro/wfd-study/releases/tag/v1.3.0
 [1.2.0]: https://github.com/dallegro/wfd-study/releases/tag/v1.2.0
 [1.1.1]: https://github.com/dallegro/wfd-study/pull/2
