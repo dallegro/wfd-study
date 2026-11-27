@@ -1,11 +1,10 @@
 /* wfd. — versioned offline cache. Original recordings remain byte-identical. */
-const VERSION = '1.2.0';
-// Cache revision is independent of the unchanged versioned asset directory.
+const VERSION = '1.3.0';
 const CACHE = `wfd-pwa-refactor-${VERSION}`;
 const ROOT = new URL('./', self.registration.scope).href;
 const url = path => new URL(path, ROOT).href;
 const APP = url('index.html');
-const SOURCE = ['sentences','word-timings','waveforms','locales','scoring','study','player-ui','pwa','help','review-exam','theme','main','storage','study-plan'];
+const SOURCE = ['sentences','word-timings','waveforms','locales','scoring','study','player-ui','pwa','help','review-exam','theme','main','storage','study-plan','review-model'];
 const SHELL = [APP, ...['manifest.webmanifest','icon-192.png','icon-512.png','apple-touch-icon.png'].map(url), ...SOURCE.map(n=>url(`app/v${VERSION}/src/${n}.js`)), ...['base','components','layout'].map(n=>url(`app/v${VERSION}/styles/${n}.css`))];
 const AUDIO = Array.from({length:191},(_,i)=>url(`audio/${String(i+1).padStart(3,'0')}.mp3`));
 const assets = new Set([...SHELL,...AUDIO]);
@@ -22,6 +21,25 @@ self.addEventListener('activate',e=>e.waitUntil((async()=>{
  for(const k of await caches.keys()) if(k.startsWith('wfd-pwa-')&&k!==CACHE) await caches.delete(k);
  await self.clients.claim();
 })()));
+async function offlineReady() {
+  try {
+    if (!(await caches.has(CACHE))) return false;
+    const cache = await caches.open(CACHE);
+    const present = new Set((await cache.keys()).map(request => request.url));
+    return [...assets].every(path => present.has(path));
+  } catch {
+    return false;
+  }
+}
+
+self.addEventListener('message', event => {
+  if (event.data?.type !== 'wfd:offline-status' || !event.ports[0]) return;
+  event.waitUntil((async () => {
+    const ready = event.data.version === VERSION && await offlineReady();
+    event.ports[0].postMessage({ version: VERSION, ready });
+  })());
+});
+
 async function serveAsset(req, canonical){
  const cache=await caches.open(CACHE);
  const cached=await cache.match(canonical);
