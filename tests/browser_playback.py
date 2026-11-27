@@ -21,6 +21,15 @@ with sync_playwright() as p:
     page.on('pageerror', lambda error: errors.append(str(error)))
     page.goto(URL, wait_until='domcontentloaded')
     page.wait_for_function("Number.isFinite(document.querySelector('#player').duration)")
+    # Word playback must work, stop cleanly and leave normal sentence playback available.
+    page.locator('#language').select_option('en')
+    page.locator('#english [data-word-index]').nth(3).click()
+    page.wait_for_function("document.querySelector('#status').textContent === 'Word playback complete'", timeout=10000)
+    assert page.locator('.clip-active').count() == 0
+    page.locator('#english [data-word-index]').nth(2).click()
+    page.locator('#english [data-word-index]').nth(4).click()
+    page.wait_for_function("document.querySelector('#status').textContent === 'Word playback complete'", timeout=10000)
+    assert page.locator('.clip-active').count() == 0
     page.locator('#stop').click()
     page.wait_for_function("document.querySelector('#player').currentTime > 0.1")
     assert page.evaluate("navigator.mediaSession.metadata.title") == 'WFD #001'

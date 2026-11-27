@@ -86,7 +86,7 @@ No framework, backend, or production build step is required.
 ```text
 wfd-study/
 ├── app/
-│   └── v1.4.1/
+│   └── v1.4.2/
 │       ├── src/
 │       └── styles/
 ├── audio/
@@ -167,3 +167,7 @@ Independent practice tool. Not affiliated with or endorsed by Pearson.
 <div align="center">
   <sub>Built for learners, by a learner.</sub>
 </div>
+
+
+### Word playback performance
+At normal speed, supported browsers prepare only the current sentence and play the selected segment through Web Audio when ready. The original media-element path remains available while preparation is incomplete, if Web Audio fails, or at other speeds to preserve pitch correction. Full-sentence and background playback continue to use the original media element. Physical mobile tap latency has not yet been benchmarked.
