@@ -23,6 +23,14 @@ with sync_playwright() as p:
       window.nativePlayCalls=[];
       window.bufferPlayCalls=[];
       window.decodeCount=0;
+      window.contextTrace=[];
+      const RealContext=window.AudioContext||window.webkitAudioContext;
+      const trace=(event,ctx,detail)=>window.contextTrace.push({event,state:ctx?.state,time:ctx?.currentTime,at:performance.now(),detail});
+      const originalResume=RealContext.prototype.resume;
+      RealContext.prototype.resume=function(...args){trace('resume',this);const result=originalResume.apply(this,args);result.then(()=>trace('resumed',this),e=>trace('resumeRejected',this,String(e)));return result;};
+      const originalClose=RealContext.prototype.close;
+      RealContext.prototype.close=function(...args){trace('close',this);return originalClose.apply(this,args);};
+      window.AudioContext=new Proxy(RealContext,{construct(target,args,newTarget){try{const ctx=Reflect.construct(target,args,newTarget);trace('construct',ctx,navigator.userActivation?.isActive);ctx.addEventListener('statechange',()=>trace('statechange',ctx));return ctx;}catch(e){trace('constructError',null,String(e));throw e;}}});
       const offlinePrototype=(window.OfflineAudioContext||window.webkitOfflineAudioContext).prototype;
       const decode=offlinePrototype.decodeAudioData;
       offlinePrototype.decodeAudioData=function(bytes,success,failure){
@@ -31,7 +39,7 @@ with sync_playwright() as p:
         return result;
       };
       const bufferStart=AudioBufferSourceNode.prototype.start;
-      AudioBufferSourceNode.prototype.start=function(...args){const result=bufferStart.apply(this,args);window.bufferPlayCalls.push({category:navigator.audioSession?.type,offset:args[1],duration:args[2]});return result;};
+      AudioBufferSourceNode.prototype.start=function(...args){let result;try{result=bufferStart.apply(this,args);}catch(e){trace('sourceStartError',this.context,String(e));throw e;}window.bufferPlayCalls.push({category:navigator.audioSession?.type,offset:args[1],duration:args[2]});return result;};
       const nativePlay=HTMLMediaElement.prototype.play;
       HTMLMediaElement.prototype.play=function(...args){
         if(this.id==='player')window.nativePlayCalls.push({category:navigator.audioSession?.type,offset:this.currentTime});
@@ -46,7 +54,7 @@ with sync_playwright() as p:
       const player=document.querySelector('#player');
       window.mediaTrace=[];
       const ranges=r=>Array.from({length:r.length},(_,i)=>[r.start(i),r.end(i)]);
-      window.mediaSnapshot=()=>({time:player.currentTime,duration:player.duration,paused:player.paused,seeking:player.seeking,ready:player.readyState,network:player.networkState,seekable:ranges(player.seekable),buffered:ranges(player.buffered),error:player.error?.message,status:document.querySelector('#status').textContent,native:window.nativePlayCalls,buffer:window.bufferPlayCalls});
+      window.mediaSnapshot=()=>({time:player.currentTime,duration:player.duration,paused:player.paused,seeking:player.seeking,ready:player.readyState,network:player.networkState,seekable:ranges(player.seekable),buffered:ranges(player.buffered),error:player.error?.message,status:document.querySelector('#status').textContent,contextTrace:window.contextTrace,native:window.nativePlayCalls,buffer:window.bufferPlayCalls});
       for(const name of ['play','playing','pause','seeking','seeked','waiting','stalled','error','ended'])player.addEventListener(name,()=>window.mediaTrace.push({name,...window.mediaSnapshot()}));
     }""")
     def wait_complete():
@@ -65,7 +73,7 @@ with sync_playwright() as p:
     page.wait_for_function('decodeCount > 0', timeout=15000)
     words.nth(3).click()
     wait_complete()
-    assert page.evaluate("bufferPlayCalls.length === 1 && bufferPlayCalls[0].duration > 0 && nativePlayCalls.length === 0")
+    assert page.evaluate("bufferPlayCalls.length === 1 && bufferPlayCalls[0].duration > 0 && nativePlayCalls.length === 0"), page.evaluate("mediaSnapshot()")
     if simulate_category:
         assert page.evaluate("bufferPlayCalls[0].category === 'playback'")
     else:
