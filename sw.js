@@ -11,7 +11,7 @@
     Independent practice tool · Not an official Pearson service.
     Learning materials and audio: Banditbul Education (Nov 19).
 */
-const CACHE = 'wfd-pwa-v12-word-audio-64ddf3fcf1';
+const CACHE = 'wfd-pwa-v16-guide-8834f4914b';
 const PREFIX = 'wfd-pwa-';
 const APP = new URL('./index.html', self.registration.scope).href;
 const ROOT = new URL('./', self.registration.scope).href;
