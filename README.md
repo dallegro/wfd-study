@@ -51,7 +51,7 @@ wfd. combines repeated listening, active recall, dictation, and spaced review in
 - **iOS / iPadOS:** Safari → Share → Add to Home Screen
 - **Android / Desktop:** Install app or Add to Home Screen, where supported.
 
-Open the app online and wait for offline readiness before disconnecting.
+Open the app online and wait for offline readiness before disconnecting. Online practice can begin while audio downloads in the background; if offline storage fails, reopen the app while connected.
 
 ### Background listening
 
@@ -86,7 +86,7 @@ No framework, backend, or production build step is required.
 ```text
 wfd-study/
 ├── app/
-│   └── v1.4.0/
+│   └── v1.4.1/
 │       ├── src/
 │       └── styles/
 ├── audio/
@@ -127,6 +127,7 @@ npm test
 - Browser integration tests
 - Offline playback regression tests
 - Cross-browser playback checks using Chromium, Firefox, and WebKit
+- Simulated slow CPU and network checks using Chromium
 - GitHub Actions continuous integration
 
 Browser-engine tests do not replace physical-device testing.

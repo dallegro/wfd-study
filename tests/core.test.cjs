@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const root = path.resolve(__dirname,'..');
-const src = path.join(root,'app/v1.4.0/src');
+const src = path.join(root,'app/v1.4.1/src');
 const {alignDictation} = require(path.join(src,'scoring.js'));
 test('exact sentence, case and punctuation',()=>{ const g=alignDictation('A useful structure.','a useful structure'); assert.equal(g.correct,3);assert.equal(g.perfect,true); });
 test('omission',()=>{ const g=alignDictation('a good structure','a structure');assert.equal(g.correct,2);assert.equal(g.missing,1);assert.equal(g.perfect,false); });
@@ -118,4 +118,54 @@ test('media integration is optional and unsupported actions cannot crash playbac
   assert.doesNotThrow(()=>{controls.activate();controls.sync({index:0});controls.release()});
   const unsupported=createMediaControls({session:{setActionHandler(){throw Error('unsupported')},setPositionState(){throw Error('unsupported')}},audioSession:{set type(value){throw Error('unsupported')}}},callbacks);
   assert.doesNotThrow(()=>{unsupported.activate();unsupported.sync({index:0,playing:true});unsupported.release()});
+});
+
+test('offline cache install downloads only app shell',async()=>{
+  const c=worker();
+  await vm.runInContext("globalThis.downloaded=[]; caches.open=async()=>({addAll:async reqs=>downloaded.push(...reqs.map(r=>r.url))})",c);
+  await vm.runInContext('precache()',c);
+  assert.equal(vm.runInContext('downloaded.length',c),24);
+  assert.equal(vm.runInContext('downloaded.some(url=>AUDIO.includes(url))',c),false);
+});
+test('offline audio preparation reuses cached media and resumes partial download',async()=>{
+  const c=worker();
+  await vm.runInContext(`
+    globalThis.present=new Set([...SHELL,AUDIO[0]]);
+    globalThis.reused=[],globalThis.downloaded=[],globalThis.fail=true;
+    caches.open=async()=>({
+      keys:async()=>[...present].map(url=>({url})),
+      put:async(url)=>{reused.push(url);present.add(url)},
+      add:async(req)=>{if(fail&&req.url===AUDIO[2])throw Error('quota');downloaded.push(req.url);present.add(req.url)}
+    });
+    caches.match=async url=>url===AUDIO[1]?new Response('audio'):undefined;
+    caches.keys=async()=>[CACHE];
+  `,c);
+  assert.equal(await vm.runInContext('prepareAudio()',c),false);
+  assert.equal(await vm.runInContext('offlineReady()',c),false);
+  await vm.runInContext('fail=false',c);
+  assert.equal(await vm.runInContext('prepareAudio()',c),true);
+  assert.equal(await vm.runInContext('offlineReady()',c),true);
+  assert.equal(vm.runInContext('reused.length',c),1);
+  assert.equal(vm.runInContext('downloaded.length',c),189);
+});
+test('cache storage failure falls back to network media',async()=>{
+  const c=worker();
+  await vm.runInContext("caches.open=async()=>{throw Error('storage unavailable')};fetch=async()=>new Response('online')",c);
+  const response=await vm.runInContext('serveAsset(new Request(AUDIO[0]),AUDIO[0])',c);
+  assert.equal(await response.text(),'online');
+});
+test('media position and playback state avoid redundant writes',()=>{
+  let positions=0,states=0;
+  const session={setActionHandler(){},setPositionState(){positions++},set playbackState(v){states++}};
+  const cb=()=>{};
+  const controls=createMediaControls({session},{play:cb,pause:cb,stop:cb,previous:cb,next:cb,seek:cb});
+  controls.activate();
+  const state={index:0,playing:true,canSeek:true,duration:4,position:1,rate:1};
+  controls.sync(state);
+  controls.sync({...state,position:1.1});
+  assert.equal(positions,1);assert.equal(states,1);
+  controls.sync({...state,position:1.5});
+  assert.equal(positions,2);
+  controls.sync({...state,playing:false,position:1.5});
+  assert.equal(states,2);assert.equal(positions,3);
 });

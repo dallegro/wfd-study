@@ -22,6 +22,7 @@ jobs:
       - run: |
           python -m http.server 8000 > /tmp/wfd-http.log 2>&1 &
           python tests/browser_smoke.py
+          python tests/browser_low_end.py
 
   playback:
     runs-on: ubuntu-24.04
