@@ -106,6 +106,10 @@ See [Architecture](docs/ARCHITECTURE.md) for module responsibilities, browser te
 
 See [Changelog](CHANGELOG.md) for version history.
 
+## Background listening
+
+Start playback in the app before switching away or locking the screen. On supported browsers, system media controls can pause, resume, and navigate memorization sentences. Dictation and review restrict track navigation to protect answers and progress. Background repetition and automatic transitions depend on the browser and operating system; if playback stops, return to the app and resume. Installed web apps and browser tabs can behave differently.
+
 ## Privacy & limitations
 
 - Learning records and preferences are stored locally in the browser.

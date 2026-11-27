@@ -22,3 +22,21 @@ jobs:
       - run: |
           python -m http.server 8000 > /tmp/wfd-http.log 2>&1 &
           python tests/browser_smoke.py
+
+  playback:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install playwright==1.57.0 && python -m playwright install --with-deps ${{ matrix.browser }}
+      - run: |
+          python -m http.server 8000 > /tmp/wfd-http.log 2>&1 &
+          python tests/browser_playback.py
+        env:
+          WFD_BROWSER: ${{ matrix.browser }}

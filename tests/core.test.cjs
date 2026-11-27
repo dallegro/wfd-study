@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const root = path.resolve(__dirname,'..');
-const src = path.join(root,'app/v1.3.0/src');
+const src = path.join(root,'app/v1.4.0/src');
 const {alignDictation} = require(path.join(src,'scoring.js'));
 test('exact sentence, case and punctuation',()=>{ const g=alignDictation('A useful structure.','a useful structure'); assert.equal(g.correct,3);assert.equal(g.perfect,true); });
 test('omission',()=>{ const g=alignDictation('a good structure','a structure');assert.equal(g.correct,2);assert.equal(g.missing,1);assert.equal(g.perfect,false); });
@@ -17,7 +17,7 @@ const sw=fs.readFileSync(path.join(root,'sw.js'),'utf8');
 function worker(){const events={};const bytes=Uint8Array.from([0,1,2,3,4,5]);const fakeCache={match:async()=>new Response(bytes,{headers:{'Content-Type':'audio/mpeg'}})};const c=vm.createContext({URL,Request,Response,Set,Array,Number,Math,caches:{has:async()=>true,open:async()=>fakeCache},fetch:async()=>{throw new Error('unexpected network')},self:{registration:{scope:'https://example.test/wfd-study/'},location:{origin:'https://example.test'},addEventListener:(name,fn)=>events[name]=fn}});vm.runInContext(sw,c);return c;}
 test('offline MP3 range response',async()=>{const c=worker();const r=await vm.runInContext(`serveAsset(new Request('https://example.test/wfd-study/audio/001.mp3',{headers:{Range:'bytes=1-3'}}), AUDIO[0])`,c);assert.equal(r.status,206);assert.equal(r.headers.get('Content-Range'),'bytes 1-3/6');assert.deepEqual([...new Uint8Array(await r.arrayBuffer())],[1,2,3]);});
 test('offline suffix and invalid ranges',async()=>{const c=worker();let r=await vm.runInContext(`serveAsset(new Request(AUDIO[0],{headers:{Range:'bytes=-2'}}), AUDIO[0])`,c);assert.deepEqual([...new Uint8Array(await r.arrayBuffer())],[4,5]);r=await vm.runInContext(`serveAsset(new Request(AUDIO[0],{headers:{Range:'bytes=6-'}}), AUDIO[0])`,c);assert.equal(r.status,416);});
-test('every service worker precache path exists',()=>{const c=worker();const paths=vm.runInContext('[...assets]',c);assert.equal(paths.length,214);for(const u of paths)assert.ok(fs.existsSync(path.join(root,new URL(u).pathname.replace('/wfd-study/',''))),u);});
+test('every service worker precache path exists',()=>{const c=worker();const paths=vm.runInContext('[...assets]',c);assert.equal(paths.length,215);for(const u of paths)assert.ok(fs.existsSync(path.join(root,new URL(u).pathname.replace('/wfd-study/',''))),u);});
 
 const {isValidGoal,getDayCount,getDayRange,getResumeIndex}=require(path.join(src,'study-plan.js'));
 const {readStored,writeStored}=require(path.join(src,'storage.js'));
@@ -88,4 +88,34 @@ test('offline status checks actual asset membership, not only count',async()=>{
   assert.equal(await vm.runInContext('offlineReady()',c),true);
   await vm.runInContext("caches.open=async()=>({keys:async()=>[...assets].slice(1).concat('https://example.test/unrelated').map(url=>({url}))})",c);
   assert.equal(await vm.runInContext('offlineReady()',c),false);
+});
+
+const {createMediaControls}=require(path.join(src,'media-session.js'));
+test('media controls expose neutral metadata and gated actions',()=>{
+  const handlers={},session={setActionHandler:(name,fn)=>handlers[name]=fn,setPositionState(value){this.position=value;}};
+  const audioSession={},callback=()=>{};
+  const controls=createMediaControls({session,audioSession,Metadata:class{constructor(value){Object.assign(this,value)}},artwork:[]},{play:callback,pause:callback,stop:callback,previous:callback,next:callback,seek:callback});
+  controls.activate();
+  assert.equal(audioSession.type,'playback');
+  controls.sync({index:2,playing:true,canPrevious:true,canNext:false,canSeek:true,duration:4,position:6,rate:1});
+  assert.equal(session.metadata.title,'WFD #003');
+  assert.equal(session.playbackState,'playing');
+  assert.equal(handlers.previoustrack,callback);
+  assert.equal(handlers.nexttrack,null);
+  assert.equal(session.position.position,4);
+  controls.sync({index:2,playing:false,canPrevious:false,canNext:false,canSeek:false});
+  assert.equal(handlers.previoustrack,null);
+  assert.equal(handlers.seekto,null);
+  assert.equal(session.playbackState,'paused');
+  controls.release();
+  assert.equal(session.metadata,null);
+  assert.equal(session.playbackState,'none');
+  assert.equal(handlers.play,null);
+});
+test('media integration is optional and unsupported actions cannot crash playback',()=>{
+  const callbacks={play(){},pause(){},stop(){},previous(){},next(){},seek(){}};
+  const controls=createMediaControls({},callbacks);
+  assert.doesNotThrow(()=>{controls.activate();controls.sync({index:0});controls.release()});
+  const unsupported=createMediaControls({session:{setActionHandler(){throw Error('unsupported')},setPositionState(){throw Error('unsupported')}},audioSession:{set type(value){throw Error('unsupported')}}},callbacks);
+  assert.doesNotThrow(()=>{unsupported.activate();unsupported.sync({index:0,playing:true});unsupported.release()});
 });
