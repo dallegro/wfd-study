@@ -13,7 +13,8 @@
     <img src="https://img.shields.io/badge/Platform-Web%20%2F%20PWA-625CE0" alt="Web and PWA" />
     <img src="https://img.shields.io/badge/Study-WFD%20191-625CE0" alt="191 sentences" />
     <img src="https://img.shields.io/badge/JavaScript-ES%20Modules-625CE0" alt="JavaScript ES Modules" />
-    <img src="https://github.com/dallegro/wfd-study/actions/workflows/checks.yml/badge.svg?branch=main" alt="App checks" />
+    <a href="https://github.com/dallegro/wfd-study/actions/workflows/checks.yml"><img src="https://github.com/dallegro/wfd-study/actions/workflows/checks.yml/badge.svg?branch=main" alt="App checks" /></a>
+    <a href="https://github.com/dallegro/wfd-study/releases/latest"><img src="https://img.shields.io/github/v/release/dallegro/wfd-study" alt="Latest release" /></a>
   </p>
 </div>
 
@@ -27,13 +28,14 @@ wfd. combines repeated listening, active recall, dictation, and spaced review in
 | --- | --- |
 | Study plan | Custom daily targets and progress tracking |
 | Audio playback | Adjustable speed, repetition, intervals, and playback order |
+| Background listening | System media controls and lock-screen playback on supported browsers |
 | Memorization | Transcripts, translations, and synchronized word highlighting |
 | Dictation | Word-level feedback and individual word playback |
 | Review | Spaced repetition, mistakes, learning history, and weak words |
 | Exam practice | Four random sentences with timed responses |
 | Appearance | System, light, and dark themes |
 | Accessibility | Keyboard shortcuts, labeled controls, and responsive layouts |
-| Languages | Korean, English, Cebuano, Japanese, Chinese, Hindi, Spanish, Vietnamese, Nepali, and Filipino |
+| Languages | Korean, English, Cebuano, Japanese, Simplified Chinese, Hindi, Spanish, Vietnamese, Nepali, and Filipino |
 | Offline | Installable PWA with locally cached recordings |
 
 ## Getting started
@@ -51,11 +53,28 @@ wfd. combines repeated listening, active recall, dictation, and spaced review in
 
 Open the app online and wait for offline readiness before disconnecting.
 
+### Background listening
+
+Start audio playback before switching apps or locking the screen.
+
+On supported browsers, system media controls allow you to:
+
+- Play and pause audio.
+- Navigate sentences in memorization mode.
+- View the current sentence number.
+- Control playback through compatible media buttons.
+
+Dictation and review restrict external navigation to protect answers and progress.
+
+Background playback and automatic transitions depend on browser and operating system restrictions. If playback stops, return to the app and resume.
+
 ## Technology
 
 - HTML and CSS
 - Vanilla JavaScript with native ES modules
 - HTML Audio API
+- Media Session API
+- Audio Session API, where supported
 - localStorage
 - Service Worker and Web App Manifest
 - GitHub Pages
@@ -67,7 +86,7 @@ No framework, backend, or production build step is required.
 ```text
 wfd-study/
 ├── app/
-│   └── v1.3.0/
+│   └── v1.4.0/
 │       ├── src/
 │       └── styles/
 ├── audio/
@@ -102,13 +121,19 @@ Run core tests:
 npm test
 ```
 
+### Testing
+
+- Core logic and data integrity tests
+- Browser integration tests
+- Offline playback regression tests
+- Cross-browser playback checks using Chromium, Firefox, and WebKit
+- GitHub Actions continuous integration
+
+Browser-engine tests do not replace physical-device testing.
+
 See [Architecture](docs/ARCHITECTURE.md) for module responsibilities, browser testing, and release procedures.
 
 See [Changelog](CHANGELOG.md) for version history.
-
-## Background listening
-
-Start playback in the app before switching away or locking the screen. On supported browsers, system media controls can pause, resume, and navigate memorization sentences. Dictation and review restrict track navigation to protect answers and progress. Background repetition and automatic transitions depend on the browser and operating system; if playback stops, return to the app and resume. Installed web apps and browser tabs can behave differently.
 
 ## Privacy & limitations
 
@@ -118,12 +143,15 @@ Start playback in the app before switching away or locking the screen. On suppor
 - Cloudflare Web Analytics measures site usage and performance.
 - Dictation feedback is for practice and does not represent official Pearson scores.
 - Word-level audio playback may not perfectly isolate individual words.
+- Background playback depends on browser and operating system support.
 
 ## 한국어 안내
 
 PTE WFD 191문장을 반복 듣기, 암기, 받아쓰기, 복습 및 실전 연습으로 학습할 수 있는 웹앱입니다.
 
 일일 학습량과 학습 회차를 설정하고, 암기 모드에서 문장을 학습한 뒤 받아쓰기 모드에서 기억을 점검하세요. 오답과 학습 기록은 복습 메뉴에서 확인할 수 있습니다.
+
+지원되는 환경에서는 다른 앱을 사용하거나 화면을 잠근 상태에서도 음성을 들을 수 있습니다. 백그라운드 연속 재생 및 미디어 제어는 기기와 브라우저에 따라 다를 수 있습니다.
 
 학습 기록은 현재 브라우저에 저장되며, 최초 오프라인 준비가 완료되면 인터넷 연결 없이 학습할 수 있습니다.
 
