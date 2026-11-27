@@ -1,4 +1,3 @@
-
 <div align="center">
   <img src="./icon-192.png" width="80" height="80" alt="wfd. app icon" />
   <h1>wfd.</h1>
@@ -78,21 +77,29 @@ Background playback and automatic transitions depend on browser and operating sy
 
 Tap a word in the transcript or supported dictation feedback to hear the corresponding part of the original recording.
 
-At normal playback speed, Web Audio can use the current decoded sentence for low-latency word playback, including the first tap when decoding is ready. The optional Audio Session API configures playback output where supported; lack of that API alone does not disable Web Audio on desktop or Android. No full-sentence playback or warm-up audio is required.
+At normal playback speed, Web Audio uses the current decoded sentence for optimized word playback when the audio and output context are ready.
+
+The optional Audio Session API configures playback output where supported. Lack of Audio Session support alone does not disable optimized playback on desktop or Android.
+
+No full-sentence playback or additional user setup is required.
 
 The original media-element playback method remains available when:
 
-- An Apple mobile environment is detected but the playback audio category cannot be configured (silent-switch compatibility exception). Device identification is a best-effort heuristic.
+- An Apple mobile environment is detected but the playback audio category cannot be configured.
 - The decoded audio is not yet ready.
-- AudioContext output is still initializing. If startup exceeds the existing 350 ms bound, that word uses native playback without cancelling the pending output initialization. Later words reuse the context when ready.
-- Web Audio is unavailable or fails.
+- Audio output initialization is still in progress.
+- Web Audio is unavailable or fails to initialize.
 - A non-default playback speed is selected.
 
-This preserves the existing pitch-corrected playback behavior at other speeds.
+If audio initialization exceeds the 350 ms startup threshold, the current word uses native playback while initialization may continue. Subsequent words can reuse the output context once it is ready.
+
+This approach avoids unnecessary context recreation and preserves the existing pitch-corrected playback behavior at other speeds.
+
+Apple mobile device detection is a best-effort compatibility measure. Actual playback behavior varies by device, browser, and operating system.
 
 ## Performance
 
-wfd. is designed to reduce unnecessary processing without compromising the experience on capable devices.
+wfd. is designed to reduce unnecessary processing while preserving responsiveness on capable devices.
 
 ### Adaptive rendering
 
@@ -106,7 +113,9 @@ wfd. is designed to reduce unnecessary processing without compromising the exper
 - Loads sentence recordings on demand.
 - Uses precomputed waveforms and word timings.
 - Retains only the current decoded sentence for optimized word playback.
+- Reuses initialized audio contexts during foreground playback.
 - Cancels superseded word playback to avoid overlapping audio.
+- Prevents expired playback requests from restarting after delayed initialization.
 - Preserves the original recordings without additional compression.
 
 ### Resource management
@@ -115,6 +124,7 @@ wfd. is designed to reduce unnecessary processing without compromising the exper
 - Reuses existing sentence buttons.
 - Reduces redundant DOM and system media updates.
 - Adapts background download concurrency to available connection information and measured batch times.
+- Releases the word audio output context when the page enters the background.
 
 No separate low-performance mode is required.
 
@@ -187,7 +197,7 @@ Previous versioned assets are retained for compatibility.
 
 ## Development
 
-Requires Node.js 22 for automated tests.
+Requires Node.js 22 for automated core tests and Python 3 for the local development server.
 
 Run locally:
 
@@ -213,7 +223,8 @@ The current release includes 41 automated core tests covering:
 - Offline cache integrity and recovery.
 - Media controls and playback state.
 - Adaptive rendering and download concurrency.
-- Word audio lifecycle and fallback behavior.
+- Word audio initialization and lifecycle.
+- Delayed initialization, context reuse, cancellation, and fallback behavior.
 
 Browser integration checks cover:
 
@@ -222,13 +233,19 @@ Browser integration checks cover:
 - Theme and language settings.
 - Dictation, review, and exam workflows.
 - Offline playback.
+- First-word playback without full-sentence playback.
 - Rapid word selection.
+- Audio context reuse after delayed initialization.
+- Playback compatibility and native fallback.
+- Foreground restoration.
 - System media controls.
 - Simulated slow CPU and network conditions.
 
 GitHub Actions runs automated checks using Chromium, Firefox, and WebKit.
 
-Browser-engine tests and simulated performance conditions do not replace physical-device testing. Actual mobile playback latency, memory usage, battery consumption, and older OS compatibility require further measurement.
+The local test server supports HTTP byte-range requests for media seeking. Firefox CI uses a virtual audio output to support media playback testing.
+
+Browser-engine tests and simulated performance conditions do not replace physical-device testing. Actual audio output, mobile playback latency, memory usage, battery consumption, and older OS compatibility require further measurement.
 
 ## Documentation
 
@@ -245,7 +262,8 @@ Browser-engine tests and simulated performance conditions do not replace physica
 - Cloudflare Web Analytics measures site usage and performance.
 - Dictation feedback is for practice and does not represent official Pearson scores.
 - Word-level audio playback may not perfectly isolate individual words.
-- Background playback depends on browser and operating system support.
+- Audio playback behavior depends on browser and operating system support.
+- Background playback and automatic transitions are subject to system restrictions.
 - Offline storage is subject to browser storage policies and available device storage.
 
 ## 한국어 안내
@@ -264,7 +282,11 @@ PTE WFD 191문장을 반복 듣기, 암기, 받아쓰기, 복습 및 실전 연�
 
 문장 속 단어를 누르면 원본 음원의 해당 구간을 들을 수 있습니다.
 
-지원되는 브라우저에서는 현재 문장의 음원을 미리 준비하여 단어별 재생 지연을 줄입니다. 음원이 준비되지 않았거나 다른 배속을 사용하는 경우 기존 재생 방식이 적용됩니다.
+지원되는 브라우저에서는 현재 문장의 음원을 미리 준비하여 단어별 재생 지연을 줄입니다.
+
+음원 준비나 오디오 초기화가 완료되지 않은 경우 기존 재생 방식을 사용하며, 준비가 완료되면 이후 단어부터 최적화된 재생 방식으로 자동 전환합니다.
+
+기기 및 브라우저 호환성과 음질을 유지하기 위해 일부 환경과 기본 배속 이외의 재생에서는 기존 재생 방식이 적용됩니다.
 
 지원되는 환경에서는 다른 앱을 사용하거나 화면을 잠근 상태에서도 음성을 들을 수 있습니다. 백그라운드 연속 재생 및 미디어 제어는 기기와 브라우저에 따라 다를 수 있습니다.
 
@@ -272,7 +294,11 @@ PTE WFD 191문장을 반복 듣기, 암기, 받아쓰기, 복습 및 실전 연�
 
 기기의 실제 렌더링 상태와 네트워크 환경에 따라 화면 갱신 및 음원 다운로드를 자동으로 조절합니다.
 
+오디오 초기화 및 재생 상태에 따라 적절한 재생 방식을 선택하며, 준비된 음원과 오디오 컨텍스트를 재사용하여 불필요한 처리를 줄입니다.
+
 별도의 저사양 모드 설정 없이 다양한 기기에서 학습할 수 있도록 설계되었습니다.
+
+실제 재생 속도와 호환성은 기기, 브라우저 및 운영체제에 따라 달라질 수 있습니다.
 
 ### 오프라인 학습
 
