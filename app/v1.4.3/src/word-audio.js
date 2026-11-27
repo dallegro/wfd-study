@@ -6,15 +6,21 @@ export function createWordAudio({
 }) {
   let url = null, generation = 0, buffer = null, pending = null, timer = null;
   let context = null, active = null;
-  let mediaStarted = false, fastPathFailed = false;
-  // Bootstrap the output route with real media-element progress, not merely a resolved AudioContext.resume().
-  function noteMediaPlayback() { mediaStarted = true; }
-  function resetOutput() { stop(); mediaStarted = false; fastPathFailed = false; }
+  // A context is owned by foreground word playback; no hidden warm-up audio.
+  function resetOutput() {
+    stop();
+    const previous = context;
+    context = null;
+    if (previous && previous.state !== 'closed') {
+      try { Promise.resolve(previous.close()).catch(()=>{}); } catch {}
+    }
+  }
   function stop() {
     const job = active;
     active = null;
     if (!job) return;
     clearTimer(job.watchdog);
+    if (job.context && job.stateListener) job.context.removeEventListener?.('statechange', job.stateListener);
     if (job.source) {
       job.source.onended = null;
       try { job.source.stop(); } catch {}
@@ -56,60 +62,67 @@ export function createWordAudio({
       finally { if (pending === controller) pending = null; }
     }, delay);
   }
-  function play({ from, to, rate, onEnd, onFallback }) {
+  function play({ from, to, rate, outputConfigured, onStart=()=>{}, onEnd, onFallback, onError=onFallback }) {
     stop();
-    // AudioBufferSource playbackRate changes pitch, unlike the normal player.
-    // Preserve the existing pitch-corrected behavior at non-default speeds.
-    if (!mediaStarted || fastPathFailed || !buffer || rate !== 1 || !AudioContext) return false;
+    // Without explicit playback-category support, prefer native media output.
+    // Web Audio may obey the iOS silent switch; output cannot be inferred from its clock.
+    if (!outputConfigured || !buffer || rate !== 1 || !AudioContext) return false;
     const start = Math.max(0, from), end = Math.min(buffer.duration, to);
     if (!(end > start)) return false;
     try {
       if (!context || context.state === 'closed') context = new AudioContext();
-      const job = { source: null, start, end, started: null, watchdog: null };
+      const ctx = context;
+      const job = { context:ctx, source:null, start, end, started:null, phase:'starting', watchdog:null, stateListener:null };
       active = job;
       function fail() {
         if (active !== job) return;
-        stop();
-        mediaStarted = false;
-        fastPathFailed = true;
-        onFallback();
+        const wasPlaying = job.phase === 'playing';
+        resetOutput();
+        // Do not replay a partially heard word on interruption or stall.
+        if (wasPlaying) onError(); else onFallback();
       }
       function begin() {
         if (active !== job) return;
         clearTimer(job.watchdog);
         try {
-          if (context.state !== 'running') { fail(); return; }
-          const source = context.createBufferSource();
+          if (ctx.state !== 'running') { fail(); return; }
+          const source = ctx.createBufferSource();
           job.source = source;
           source.buffer = buffer;
-          source.connect(context.destination);
-          job.started = context.currentTime;
+          source.connect(ctx.destination);
+          job.started = ctx.currentTime;
           source.onended = () => {
             if (active !== job) return;
-            const elapsed = context.currentTime - job.started;
-            // A stopped/interrupted context or an early end must not report successful playback.
-            if (context.state !== 'running' || !(elapsed > 0) || elapsed + 0.025 < end - start) { fail(); return; }
+            if (ctx.state !== 'running') { fail(); return; }
             stop();
             onEnd();
           };
           source.start(0, start, end - start);
-          // Prevent a stuck active state if the OS interrupts the audio context.
-          job.watchdog = setTimer(fail, (end - start) * 1000 + 1000);
+          job.phase = 'playing';
+          // The scheduled source owns normal completion; this is only a liveness bound.
+          job.watchdog = setTimer(fail, (end-start)*1000+2000);
+          onStart();
         } catch { fail(); }
       }
-      if (context.state === 'running') begin();
+      job.stateListener = () => {
+        if (active !== job) return;
+        if (job.phase === 'playing' && ctx.state !== 'running') fail();
+        else if (job.phase === 'starting' && ctx.state === 'closed') fail();
+      };
+      ctx.addEventListener?.('statechange',job.stateListener);
+      if (ctx.state === 'running') begin();
       else {
-        // resume() is invoked synchronously within the user's tap.
-        job.watchdog = setTimer(fail, 350);
-        Promise.resolve(context.resume()).then(begin, fail);
+        // Call resume directly within the user's activation, not after a fetch/decode.
+        job.watchdog = setTimer(fail, 1500);
+        Promise.resolve(ctx.resume()).then(begin,fail);
       }
       return true;
-    } catch { stop(); mediaStarted = false; fastPathFailed = true; return false; }
+    } catch { resetOutput(); return false; }
   }
   function position() {
     if (!active) return null;
     return active.started === null ? active.start :
       Math.min(active.end, active.start + Math.max(0, context.currentTime - active.started));
   }
-  return { select, prepare, play, stop, position, noteMediaPlayback, resetOutput, get ready() { return !!buffer; } };
+  return { select, prepare, play, stop, position, resetOutput, get ready() { return !!buffer; } };
 }

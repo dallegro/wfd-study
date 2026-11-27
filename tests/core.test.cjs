@@ -208,8 +208,9 @@ test('worker adjusts bounded download batches without overriding restricted mode
 });
 
 const {createWordAudio}=require(path.join(src,'word-audio.js'));
+const {preparePlaybackSession}=require(path.join(src,'media-session.js'));
 function wordAudioFixture(options={}){
-  const timers=new Map(),sources=[],decodes=[],requests=[];
+  const timers=new Map(),sources=[],decodes=[],requests=[],contexts=[];
   let next=0,clock=0;
   const setTimer=(fn)=>{const key=++next;timers.set(key,fn);return key;};
   const clearTimer=key=>timers.delete(key);
@@ -218,7 +219,13 @@ function wordAudioFixture(options={}){
   }
   class Context{
     state=options.state||'running';
+    listeners=new Set();
+    constructor(){contexts.push(this);}
     resume(){return options.resume?options.resume(this):Promise.resolve();}
+    close(){this.state='closed';return Promise.resolve();}
+    addEventListener(type,fn){this.listeners.add(fn);}
+    removeEventListener(type,fn){this.listeners.delete(fn);}
+    changeState(state){this.state=state;for(const fn of [...this.listeners])fn();}
     get currentTime(){return clock;}
     destination={};
     createBufferSource(){
@@ -230,84 +237,89 @@ function wordAudioFixture(options={}){
     fetchAudio:async(url,options)=>{requests.push({url,signal:options.signal});return {ok:true,arrayBuffer:async()=>new ArrayBuffer(8)};},
     setTimer,clearTimer});
   async function prepare(){engine.prepare();const [key,fn]=timers.entries().next().value;timers.delete(key);await fn();}
-  return {engine,prepare,sources,decodes,requests,timers,setClock:value=>{clock=value;}};
+  return {engine,prepare,sources,decodes,requests,timers,contexts,setClock:value=>{clock=value;}};
 }
-test('decoded words use original buffer offsets, replace active source and avoid repeated decoding',async()=>{
-  const f=wordAudioFixture();const e=f.engine;
+const wordOptions={from:1,to:1.5,rate:1,outputConfigured:true,onStart(){},onEnd(){},onFallback(){},onError(){}};
+test('decoded words use original buffer offsets and replace active sources without repeated decoding',async()=>{
+  const f=wordAudioFixture(),e=f.engine;
   e.select('one');await f.prepare();
   assert.equal(e.ready,true);
-  e.noteMediaPlayback();
-  let ended=0;const onEnd=()=>ended++;
-  assert.equal(e.play({from:1,to:1.5,rate:1,onEnd,onFallback:()=>assert.fail()}),true);
-  assert.deepEqual(f.sources[0].args,[0,1,0.5]);
+  let started=0,ended=0;
+  const clip={...wordOptions,onStart:()=>started++,onEnd:()=>ended++};
+  assert.equal(e.play(clip),true);
+  assert.deepEqual(f.sources[0].args,[0,1,0.5]);assert.equal(started,1);
   f.setClock(0.2);assert.ok(Math.abs(e.position()-1.2)<1e-8);
   const stale=f.sources[0].onended;
-  assert.equal(e.play({from:2,to:2.5,rate:1,onEnd,onFallback:()=>assert.fail()}),true);
+  assert.equal(e.play({...clip,from:2,to:2.5}),true);
   assert.equal(f.sources[0].stopped,true);stale();assert.equal(ended,0);
-  f.setClock(0.7);f.sources[1].onended();assert.equal(ended,1);
+  f.sources[1].onended();assert.equal(ended,1);assert.equal(started,2);
   assert.equal(e.position(),null);assert.equal(f.requests.length,1);assert.equal(f.decodes.length,1);
+  assert.equal(f.contexts[0].listeners.size,0);
 });
 test('word audio releases previous sentence and preserves non-default speed fallback',async()=>{
   const f=wordAudioFixture(),e=f.engine;
   e.select('one');await f.prepare();
-  e.noteMediaPlayback();
-  const callbacks={onEnd(){},onFallback(){}};
-  assert.equal(e.play({from:0,to:1,rate:0.8,...callbacks}),false);
-  assert.equal(e.play({from:0,to:1,rate:1,...callbacks}),true);
+  assert.equal(e.play({...wordOptions,rate:0.8}),false);
+  assert.equal(e.play(wordOptions),true);
   e.select('two');assert.equal(f.sources[0].stopped,true);
-  assert.equal(e.ready,false);assert.equal(e.play({from:0,to:1,rate:1,...callbacks}),false);
+  assert.equal(e.ready,false);assert.equal(e.play(wordOptions),false);
   await f.prepare();assert.equal(e.ready,true);assert.equal(f.requests.length,2);
 });
-test('unsupported and failed word audio preparation safely fall back',async()=>{
+test('unsupported audio and cancelled preparation safely fall back',async()=>{
   const e=createWordAudio({fetchAudio:()=>assert.fail()});
   e.select('one');e.prepare();
-  assert.equal(e.play({from:0,to:1,rate:1}),false);
+  assert.equal(e.play(wordOptions),false);
   const f=wordAudioFixture();f.engine.select('one');f.engine.prepare();
   f.engine.select('two');assert.equal(f.timers.size,0);assert.equal(f.engine.ready,false);
 });
-
-const {preparePlaybackSession}=require(path.join(src,'media-session.js'));
 test('word-only audio configures playback category without claiming system controls',()=>{
-  const audioSession={type:'auto'};
-  preparePlaybackSession(audioSession);
-  assert.equal(audioSession.type,'playback');
-  assert.doesNotThrow(()=>preparePlaybackSession(undefined));
-  assert.doesNotThrow(()=>preparePlaybackSession({set type(v){throw Error('unsupported')}}));
+  const session={type:'auto'};
+  assert.equal(preparePlaybackSession(session),true);assert.equal(session.type,'playback');
+  assert.equal(preparePlaybackSession(undefined),false);
+  assert.equal(preparePlaybackSession({set type(v){throw Error('unsupported')}}),false);
+  assert.equal(preparePlaybackSession({get type(){return 'auto'},set type(v){}}),false);
 });
-test('first word uses native audio even with a decoded buffer; optimized playback follows native progress',async()=>{
-  const f=wordAudioFixture(),e=f.engine;
-  e.select('one');await f.prepare();
-  const clip={from:0,to:0.5,rate:1,onEnd(){},onFallback(){}};
+test('prepared first word uses Web Audio only with confirmed output category; no bootstrap media playback',async()=>{
+  const f=wordAudioFixture(),e=f.engine;e.select('one');await f.prepare();
+  assert.equal(e.play({...wordOptions,outputConfigured:false}),false);
+  assert.equal(f.contexts.length,0);
+  assert.equal(e.play(wordOptions),true);
+  e.resetOutput();assert.equal(f.sources[0].stopped,true);
+  assert.equal(f.contexts[0].state,'closed');assert.equal(f.timers.size,0);
   assert.equal(e.ready,true);
-  assert.equal(e.play(clip),false);assert.equal(f.sources.length,0);
-  e.noteMediaPlayback();assert.equal(e.play(clip),true);
-  e.resetOutput();assert.equal(f.sources[0].stopped,true);assert.equal(f.timers.size,0);
-  assert.equal(e.ready,true);assert.equal(e.play(clip),false);
-  e.noteMediaPlayback();assert.equal(e.play(clip),true);
+  assert.equal(e.play(wordOptions),true);assert.equal(f.contexts.length,2);
 });
-test('early Web Audio ending without clock progress falls back once and never reports success',async()=>{
-  const f=wordAudioFixture(),e=f.engine;
-  e.select('one');await f.prepare();e.noteMediaPlayback();
-  let ended=0,fallback=0;const clip={from:1,to:1.5,rate:1,onEnd:()=>ended++,onFallback:()=>fallback++};
-  assert.equal(e.play(clip),true);const stale=f.sources[0].onended;stale();stale();
-  assert.equal(ended,0);assert.equal(fallback,1);assert.equal(f.sources[0].stopped,true);
-  e.noteMediaPlayback();assert.equal(e.play(clip),false);
+test('interrupted context during playback cancels without replaying a partial word',async()=>{
+  const f=wordAudioFixture(),e=f.engine;e.select('one');await f.prepare();
+  let errors=0;
+  assert.equal(e.play({...wordOptions,onEnd:()=>assert.fail(),onFallback:()=>assert.fail(),onError:()=>errors++}),true);
+  const stale=f.sources[0].onended;
+  f.contexts[0].changeState('interrupted');stale();
+  assert.equal(errors,1);assert.equal(f.sources[0].stopped,true);assert.equal(f.contexts[0].state,'closed');
 });
-test('word output watchdog requests native fallback, not false completion',async()=>{
-  const f=wordAudioFixture(),e=f.engine;
-  e.select('one');await f.prepare();e.noteMediaPlayback();
-  let fallback=0;assert.equal(e.play({from:0,to:1,rate:1,onEnd:()=>assert.fail('false completion'),onFallback:()=>fallback++}),true);
+test('output watchdog terminates stalled playback without reporting success or replaying audio',async()=>{
+  const f=wordAudioFixture(),e=f.engine;e.select('one');await f.prepare();
+  let errors=0;assert.equal(e.play({...wordOptions,onEnd:()=>assert.fail(),onFallback:()=>assert.fail(),onError:()=>errors++}),true);
   const fn=[...f.timers.values()][0];fn();fn();
-  assert.equal(fallback,1);assert.equal(f.sources[0].stopped,true);assert.equal(e.position(),null);
+  assert.equal(errors,1);assert.equal(f.sources[0].stopped,true);assert.equal(e.position(),null);
 });
-test('rejected AudioContext resume requests fallback, while cancelled resume cannot restart playback',async()=>{
-  let rejectResume;
-  const f=wordAudioFixture({state:'suspended',resume:()=>new Promise((resolve,reject)=>{rejectResume=reject;})});
-  const e=f.engine;e.select('one');await f.prepare();e.noteMediaPlayback();
-  let fallback=0;const clip={from:0,to:1,rate:1,onEnd:()=>assert.fail(),onFallback:()=>fallback++};
+test('resume rejection falls back, while cancelled resume cannot restart playback',async()=>{
+  let rejectResume,resolveResume;
+  const f=wordAudioFixture({state:'suspended',resume:ctx=>new Promise((resolve,reject)=>{rejectResume=reject;resolveResume=()=>{ctx.state='running';resolve();};})});
+  const e=f.engine;e.select('one');await f.prepare();
+  let fallback=0;const clip={...wordOptions,onEnd:()=>assert.fail(),onFallback:()=>fallback++};
   assert.equal(e.play(clip),true);rejectResume(Error('blocked'));await Promise.resolve();await Promise.resolve();
   assert.equal(fallback,1);assert.equal(f.sources.length,0);
-  e.resetOutput();e.noteMediaPlayback();assert.equal(e.play(clip),true);e.stop();
-  rejectResume(Error('cancelled'));await Promise.resolve();await Promise.resolve();
+  assert.equal(e.play(clip),true);e.resetOutput();
+  resolveResume();await Promise.resolve();await Promise.resolve();
   assert.equal(fallback,1);assert.equal(f.sources.length,0);
+});
+test('suspended context waits for successful resume before announcing playback',async()=>{
+  let resume;
+  const f=wordAudioFixture({state:'suspended',resume:ctx=>new Promise(resolve=>{resume=()=>{ctx.state='running';resolve();};})});
+  const e=f.engine;e.select('one');await f.prepare();
+  let started=0;assert.equal(e.play({...wordOptions,onStart:()=>started++}),true);
+  assert.equal(started,0);assert.equal(f.sources.length,0);
+  resume();await Promise.resolve();await Promise.resolve();
+  assert.equal(started,1);assert.equal(f.sources.length,1);
 });

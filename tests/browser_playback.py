@@ -17,6 +17,17 @@ with sync_playwright() as p:
       window.MediaMetadata = class {constructor(value) {Object.assign(this, value);}};
       Object.defineProperty(navigator, 'audioSession', {value: {type:'auto'}, configurable: true});
       window.nativePlayCalls=[];
+      window.bufferPlayCalls=[];
+      window.decodeCount=0;
+      const offlinePrototype=(window.OfflineAudioContext||window.webkitOfflineAudioContext).prototype;
+      const decode=offlinePrototype.decodeAudioData;
+      offlinePrototype.decodeAudioData=function(bytes,success,failure){
+        const done=buffer=>{window.decodeCount++;if(success)success(buffer);return buffer;};
+        const result=decode.call(this,bytes,done,failure);
+        return result;
+      };
+      const bufferStart=AudioBufferSourceNode.prototype.start;
+      AudioBufferSourceNode.prototype.start=function(...args){window.bufferPlayCalls.push({category:navigator.audioSession.type,offset:args[1],duration:args[2]});return bufferStart.apply(this,args);};
       const nativePlay=HTMLMediaElement.prototype.play;
       HTMLMediaElement.prototype.play=function(...args){
         if(this.id==='player')window.nativePlayCalls.push({category:navigator.audioSession.type,offset:this.currentTime});
@@ -28,10 +39,12 @@ with sync_playwright() as p:
     page.on('pageerror', lambda error: errors.append(str(error)))
     page.goto(URL, wait_until='domcontentloaded')
     page.wait_for_function("Number.isFinite(document.querySelector('#player').duration)")
-    # Word playback must work, stop cleanly and leave normal sentence playback available.
+    # Confirm a real decoded-buffer source starts before any full sentence playback.
     page.locator('#language').select_option('en')
+    page.wait_for_function('decodeCount > 0', timeout=15000)
     page.locator('#english [data-word-index]').nth(3).click()
-    assert page.evaluate("nativePlayCalls.length === 1 && nativePlayCalls[0].category === 'playback'")
+    page.wait_for_function('bufferPlayCalls.length === 1', timeout=10000)
+    assert page.evaluate("bufferPlayCalls[0].category === 'playback' && bufferPlayCalls[0].duration > 0 && nativePlayCalls.length === 0")
     assert page.evaluate("navigator.mediaSession.metadata == null")
     page.wait_for_function("document.querySelector('#status').textContent === 'Word playback complete'", timeout=10000)
     assert page.locator('.clip-active').count() == 0
@@ -39,8 +52,15 @@ with sync_playwright() as p:
     page.locator('#english [data-word-index]').nth(4).click()
     page.wait_for_function("document.querySelector('#status').textContent === 'Word playback complete'", timeout=10000)
     assert page.locator('.clip-active').count() == 0
-    # Foreground restoration must bootstrap the output again without playing the whole sentence.
+    assert page.evaluate('bufferPlayCalls.length >= 3')
+    # Foreground restoration re-creates output context, not a bootstrap native word.
     page.evaluate("window.dispatchEvent(new Event('pagehide')); window.dispatchEvent(new Event('pageshow'))")
+    previous_calls=page.evaluate('bufferPlayCalls.length')
+    page.locator('#english [data-word-index]').nth(3).click()
+    page.wait_for_function('count=>bufferPlayCalls.length > count', arg=previous_calls, timeout=10000)
+    page.wait_for_function("document.querySelector('#status').textContent === 'Word playback complete'", timeout=10000)
+    # Unsupported category selects the original native player without forced warmup.
+    page.evaluate("Object.defineProperty(navigator,'audioSession',{value:{get type(){return 'auto'},set type(v){}},configurable:true})")
     previous_calls=page.evaluate('nativePlayCalls.length')
     page.locator('#english [data-word-index]').nth(3).click()
     assert page.evaluate('nativePlayCalls.length') == previous_calls + 1

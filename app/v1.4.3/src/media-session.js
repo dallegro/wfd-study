@@ -1,6 +1,10 @@
 // Configure output without claiming lock-screen controls (word clips and exams are separate).
 export function preparePlaybackSession(audioSession) {
-  try { if (audioSession && audioSession.type !== 'playback') audioSession.type = 'playback'; } catch { /* Optional API. */ }
+  try {
+    if (!audioSession) return false;
+    if (audioSession.type !== 'playback') audioSession.type = 'playback';
+    return audioSession.type === 'playback';
+  } catch { return false; }
 }
 
 // Optional OS media integration. Unsupported actions must not affect in-app playback.

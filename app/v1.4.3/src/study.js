@@ -213,11 +213,9 @@ function checkWordClip(){
   const token=wordClip;
   if(token?.engine!=='element')return;
   const now=performance.now();
-  if(!a.seeking && a.currentTime>token.from+0.01 && (!a.paused||a.ended)){
-    wordAudio.noteMediaPlayback();
-    token.progressed=true;
-  }
+  if(!a.seeking && a.currentTime>token.from && (!a.paused||a.ended))token.progressed=true;
   if(token.progressed&&!a.seeking&&(a.ended||a.currentTime>=token.end)){endWordClip();return;}
+  if(a.error){endWordClip(true);return;}
   // Network/seek or output interruption must not leave a clip running indefinitely.
   if(now>token.deadline)endWordClip(true);
 }
@@ -226,6 +224,7 @@ function playElementWord(token,from,rate){
   if(document.hidden||$('studyWorkspace').hidden){endWordClip(true);return;}
   preparePlaybackSession(navigator.audioSession);
   token.engine='element';
+  token.phase='starting';
   token.from=from;
   token.progressed=false;
   token.deadline=performance.now()+8000+(token.end-from)*1000/Math.max(0.1,rate);
@@ -234,7 +233,8 @@ function playElementWord(token,from,rate){
     a.playbackRate=rate;
     a.currentTime=from;
     const promise=a.play();
-    if(promise)promise.catch(()=>{if(wordClip===token)endWordClip(true)});
+    if(promise)promise.then(()=>{if(wordClip===token){token.phase='playing';$('status').textContent=clipText(3);}}).catch(()=>{if(wordClip===token)endWordClip(true)});
+    else {token.phase='playing';$('status').textContent=clipText(3);}
     wordClipTimer=setInterval(checkWordClip,20);
     wordVisual();
   }catch{endWordClip(true)}
@@ -244,7 +244,7 @@ function playWord(i){
   if(!timing||(!shown&&gradedDraft===null)||document.hidden||$('studyWorkspace').hidden)return;
   mediaControls.release();
   // Set iOS playback category within the tap, before creating/resuming AudioContext.
-  preparePlaybackSession(navigator.audioSession);
+  const outputConfigured=preparePlaybackSession(navigator.audioSession);
   const [start,end]=timing;
   cancelRun();
   waiting=true;
@@ -254,23 +254,26 @@ function playWord(i){
   const from=Math.max(0,start-.045),to=Math.min(duration,end+.06);
   if(!(to>from))return;
   const rate=+$('speed').value;
-  const token={index:i,end:to,engine:'buffer'};
+  const token={index:i,end:to,engine:'buffer',phase:'starting'};
   wordClip=token;
   wordPosition=from;
   paintClip();
-  $('status').textContent=clipText(3);
+  $('status').textContent=tr('준비');
   syncTransport();
-  const played=wordAudio.play({from,to,rate,
+  const played=wordAudio.play({from,to,rate,outputConfigured,
+    onStart:()=>{if(wordClip===token){token.phase='playing';$('status').textContent=clipText(3);}},
     onEnd:()=>{if(wordClip===token){wordPosition=to;endWordClip();}},
-    onFallback:()=>playElementWord(token,from,rate)
+    onFallback:()=>playElementWord(token,from,rate),
+    onError:()=>{if(wordClip===token)endWordClip(true);}
   });
   if(!played)playElementWord(token,from,rate);
   else if(wordClip===token&&token.engine==='buffer')wordVisual();
-  if(!document.hidden)wordAudio.prepare();
+  if(outputConfigured&&!document.hidden)wordAudio.prepare();
 }
-a.addEventListener('timeupdate',()=>{
-  if(wordClip?.engine==='element')checkWordClip();
-  else if(!wordClip&&!a.paused&&!a.seeking&&a.currentTime>0.01)wordAudio.noteMediaPlayback();
+a.addEventListener('timeupdate',checkWordClip);
+a.addEventListener('error',()=>{if(wordClip?.engine==='element')endWordClip(true);});
+navigator.audioSession?.addEventListener?.('statechange',()=>{
+  if(navigator.audioSession.state==='interrupted'&&wordClip){endWordClip(true);wordAudio.resetOutput();}
 });
 $('language').addEventListener('change',refreshWordLabels);
 
@@ -397,7 +400,7 @@ function reveal(v){
   shown=v;
   $('reveal').setAttribute('aria-expanded',String(v));
   $('answer').classList.toggle('hidden',!v);
-  if(v){syncTranscript();if(!document.hidden)wordAudio.prepare();}
+  if(v){syncTranscript();if(!document.hidden&&navigator.audioSession)wordAudio.prepare();}
   iconButton('reveal',v?'eyeoff':'eye',v?tr('원문 · 해석 가리기'):tr('원문 · 해석 보기'))
 }
 function refreshStudyUI(){
@@ -884,7 +887,7 @@ document.addEventListener('visibilitychange',()=>{
   if(document.hidden){
     if(wordClip)endWordClip();
     wordAudio.resetOutput();
-  }else {if(shown)wordAudio.prepare();recoverPlayback();}
+  }else {if(shown&&navigator.audioSession)wordAudio.prepare();recoverPlayback();}
 });
 window.addEventListener('pagehide',()=>{if(wordClip)endWordClip();wordAudio.resetOutput();});
 window.addEventListener('pageshow',recoverPlayback);
@@ -1051,7 +1054,7 @@ $('language').onchange=()=>{
   refreshModeControls();
   if(gradedDraft!==null)renderGrade();
   refreshWordLabels();
-  if(wordClip)$('status').textContent=clipText(3)
+  if(wordClip)$('status').textContent=wordClip.phase==='playing'?clipText(3):tr('준비')
 };
 function labelControls(){
   for(const [id,key] of [['prev','이전'],['next','다음'],['shuffle','랜덤'],['play','문장 반복 ▶'],['dayPlay','하루 전체 ▶']]){

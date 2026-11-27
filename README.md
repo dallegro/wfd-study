@@ -78,11 +78,11 @@ Background playback and automatic transitions depend on browser and operating sy
 
 Tap a word in the transcript or supported dictation feedback to hear the corresponding part of the original recording.
 
-At normal playback speed, supported browsers prepare only the current sentence and use Web Audio after the native media player has made playback progress. The first word can be played directly without starting the full sentence.
+At normal playback speed, browsers that support an explicit playback audio session can use the current decoded sentence for low-latency word playback, including the first tap when decoding is ready. No full-sentence playback or warm-up audio is required.
 
 The original media-element playback method remains available when:
 
-- Audio output is being initialized or reinitialized after returning to the app.
+- The browser cannot confirm the playback audio category.
 - The decoded audio is not yet ready.
 - Web Audio is unavailable or fails.
 - A non-default playback speed is selected.
@@ -204,7 +204,7 @@ npm test
 
 ### Testing
 
-The current release includes 36 automated core tests covering:
+The current release includes 37 automated core tests covering:
 
 - Dictation scoring and data integrity.
 - Study planning and local storage.
