@@ -1,29 +1,53 @@
 
 # Changelog
 
-## 1.4.2 — Unreleased
+All notable changes to wfd. are documented in this file.
 
-### Fixed
-- Reduced repeated word-playback seeking with a bounded, current-sentence Web Audio buffer.
-- Cancelled prior word audio on rapid taps, navigation and playback transitions.
-- Preserved media-element fallback for unavailable decoding, unsupported browsers and non-default speeds.
-- Kept the existing waveform, word timing, source recordings and full-sentence playback.
-
-### Tests
-- Added decoded-buffer lifecycle and fallback tests plus cross-browser word playback regression checks.
-- Actual mobile tap-to-audio latency remains to be measured.
-
-## 1.4.1 — Unreleased
+## [1.4.2] - 2026-11-27
 
 ### Changed
-- Preserved native playback animation cadence on healthy renderers, reduced visual updates under sustained pressure, and suspended them when hidden.
-- Deferred sentence-list rendering and reused existing list buttons.
-- Activated the offline app shell before filling the audio cache, using adaptive batches of two to eight downloads and existing recordings where available.
-- Resumed incomplete audio preparation and fell back to the network if cache access fails.
-- Reduced redundant system media updates and removed an unnecessary newer array API dependency.
+- Introduced Web Audio API support for individual word playback.
+- Prepared only the current sentence to minimize memory usage.
+- Reduced repeated audio seeking when selecting words.
+- Cancelled previous word playback when another word is selected.
+- Preserved synchronized word highlighting and playback position.
+
+### Compatibility
+- Retained media-element playback when Web Audio is unavailable or decoding is incomplete.
+- Preserved existing pitch-corrected playback at non-default speeds.
+- Maintained original recordings, word timings, learning records, and preferences.
+- Preserved full-sentence playback and offline support.
 
 ### Tests
-- Added cache failure, partial download, media update, adaptive performance and simulated slow-device regression checks.
+- Expanded core test coverage from 28 to 31 tests.
+- Added decoded-buffer lifecycle, rapid selection, and fallback regression tests.
+- Passed Chromium, Firefox, and WebKit CI checks.
+- Physical mobile playback latency remains to be measured.
+
+## [1.4.1] - 2026-11-27
+
+### Changed
+- Introduced adaptive rendering based on runtime performance.
+- Preserved native refresh cadence when rendering is healthy.
+- Reduced visual update frequency under sustained rendering pressure.
+- Restored normal rendering cadence when performance recovers.
+- Suspended unnecessary visual updates when the page is hidden.
+- Deferred sentence-list rendering and reused existing DOM elements.
+- Reduced redundant system media updates.
+
+### Offline & Compatibility
+- Separated app-shell installation from audio preparation.
+- Introduced adaptive audio download concurrency from two to eight concurrent requests.
+- Reused existing cached recordings where available.
+- Improved recovery from incomplete downloads.
+- Preserved online playback when cache access fails.
+- Improved compatibility with older browser APIs.
+
+### Tests
+- Expanded core test coverage from 20 to 28 tests.
+- Added adaptive rendering and download concurrency tests.
+- Added simulated slow CPU and network testing.
+- Passed Chromium, Firefox, and WebKit CI checks.
 - Physical-device performance and older OS compatibility remain to be verified.
 
 ## [1.4.0] - 2026-11-27
@@ -105,6 +129,8 @@
 - Multilingual interface.
 - Offline PWA support.
 
+[1.4.2]: https://github.com/dallegro/wfd-study/releases/tag/v1.4.2
+[1.4.1]: https://github.com/dallegro/wfd-study/releases/tag/v1.4.1
 [1.4.0]: https://github.com/dallegro/wfd-study/releases/tag/v1.4.0
 [1.3.0]: https://github.com/dallegro/wfd-study/releases/tag/v1.3.0
 [1.2.0]: https://github.com/dallegro/wfd-study/releases/tag/v1.2.0
