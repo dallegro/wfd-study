@@ -43,6 +43,14 @@ with sync_playwright() as p:
     assert page.locator('#number').inner_text() == '#002'
     page.locator('#reviewOpen').click()
     assert page.locator('#reviewDialog').is_visible()
+    # Enter a recorded sentence and return to the previous study position.
+    page.locator('#reviewBody .plus-tabs button').nth(2).click()
+    page.locator('#reviewBody .plus-item button').first.click()
+    assert page.locator('#reviewSession').is_visible()
+    assert page.locator('#number').inner_text() == '#001'
+    page.locator('#reviewExit').click()
+    assert page.locator('#number').inner_text() == '#002'
+    assert page.locator('#reviewSession').is_hidden()
     page.locator('#examOpen').click()
     assert page.locator('#examDialog').is_visible()
     page.locator('#studyHome').click()
@@ -51,7 +59,7 @@ with sync_playwright() as p:
     page.set_viewport_size({'width':1280,'height':900})
     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
     page.wait_for_function("document.getElementById('pwaState').dataset.ready === 'true'", timeout=60000)
-    assert page.evaluate("async()=> (await (await caches.open('wfd-pwa-refactor-1.1.1')).keys()).length") == 210
+    assert page.evaluate("async()=> (await (await caches.open('wfd-pwa-refactor-1.2.0')).keys()).length") == 213
     context.set_offline(True)
     page.reload(wait_until='domcontentloaded')
     page.wait_for_function("Number.isFinite(document.getElementById('player').duration)")
