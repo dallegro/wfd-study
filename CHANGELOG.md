@@ -1,6 +1,14 @@
 
 # Changelog
 
+## 1.4.0 — Unreleased
+
+- Add optional OS media controls for practice playback, with neutral sentence-number metadata.
+- Request playback audio-session behavior where supported.
+- Recover overdue repeat transitions on foreground return without overriding an explicit pause.
+- Protect dictation drafts and exam playback from lock-screen navigation.
+- Add playback regression checks for Chromium, Firefox and WebKit. Physical-device background playback still depends on the browser and OS.
+
 ## [1.3.0] - 2026-11-27
 
 ### Changed

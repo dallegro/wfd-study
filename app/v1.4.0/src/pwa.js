@@ -1,0 +1,49 @@
+
+(()=>{
+ const labels={
+ ko:{pending:'오프라인 저장 준비 중',ready:'오프라인 학습 가능',offline:'오프라인 모드 · 학습 가능',error:'오프라인 저장을 완료하지 못했어요. 인터넷 연결 후 다시 열어 주세요.',local:'홈 화면 설치는 웹사이트에서 가능합니다.',install:'앱 설치',help:'홈 화면 추가',ios:'Safari의 공유 버튼 → 홈 화면에 추가를 선택하세요.',other:'브라우저 메뉴에서 앱 설치 또는 홈 화면에 추가를 선택하세요.',installed:'홈 화면 앱'},
+ en:{pending:'Preparing offline access',ready:'Ready for offline study',offline:'Offline · Ready to study',error:'Offline setup incomplete. Reopen the site while connected.',local:'Open the website to install the app.',install:'Install app',help:'Add to home screen',ios:'In Safari, tap Share → Add to Home Screen.',other:'Open the browser menu and choose Install app or Add to Home Screen.',installed:'Home screen app'},
+ ceb:{pending:'Giandam ang offline access',ready:'Andam sa offline nga pagtuon',offline:'Offline · Andam magtuon',error:'Wala mahuman ang offline setup. Ablihi pag-usab kon konektado sa internet.',local:'Ablihi ang website aron ma-install ang app.',install:'I-install ang app',help:'Idugang sa home screen',ios:'Sa Safari, pindota ang Share → Add to Home Screen.',other:'Sa menu sa browser, pilia ang Install app o Add to Home Screen.',installed:'Home screen app'},
+ ja:{pending:'オフライン学習の準備中',ready:'オフライン学習可能',offline:'オフライン・学習可能',error:'オフライン保存が完了していません。ネット接続後に開き直してください。',local:'アプリのインストールはウェブサイトから行えます。',install:'アプリをインストール',help:'ホーム画面に追加',ios:'Safariの共有ボタン →「ホーム画面に追加」を選択してください。',other:'ブラウザのメニューから「アプリをインストール」または「ホーム画面に追加」を選択してください。',installed:'ホーム画面アプリ'}
+ };
+ Object.assign(labels,{"zh": {"pending": "正在准备离线学习", "ready": "可离线学习", "offline": "离线 · 可以学习", "error": "离线保存未完成，请联网后重新打开。", "local": "请打开网站安装应用。", "install": "安装应用", "help": "添加到主屏幕", "ios": "Safari 中点击分享，再选择添加到主屏幕。", "other": "在浏览器菜单中选择安装应用或添加到主屏幕。", "installed": "主屏幕应用"}, "hi": {"pending": "ऑफ़लाइन तैयारी हो रही है", "ready": "ऑफ़लाइन अध्ययन के लिए तैयार", "offline": "ऑफ़लाइन · अध्ययन के लिए तैयार", "error": "ऑफ़लाइन सेटअप अधूरा है। इंटरनेट से जुड़कर फिर खोलें।", "local": "ऐप इंस्टॉल करने के लिए वेबसाइट खोलें।", "install": "ऐप इंस्टॉल करें", "help": "होम स्क्रीन पर जोड़ें", "ios": "Safari में Share → Add to Home Screen चुनें।", "other": "ब्राउज़र मेनू में ऐप इंस्टॉल करें या होम स्क्रीन पर जोड़ें चुनें।", "installed": "होम स्क्रीन ऐप"}, "es": {"pending": "Preparando acceso sin conexión", "ready": "Listo para estudiar sin conexión", "offline": "Sin conexión · Listo para estudiar", "error": "Configuración sin conexión incompleta. Vuelve a abrir con internet.", "local": "Abre el sitio web para instalar la aplicación.", "install": "Instalar aplicación", "help": "Añadir a pantalla de inicio", "ios": "En Safari, pulsa Compartir → Añadir a pantalla de inicio.", "other": "En el menú del navegador, elige Instalar aplicación o Añadir a pantalla de inicio.", "installed": "Aplicación de inicio"}, "vi": {"pending": "Đang chuẩn bị truy cập ngoại tuyến", "ready": "Có thể học ngoại tuyến", "offline": "Ngoại tuyến · Sẵn sàng học", "error": "Chưa lưu ngoại tuyến xong. Hãy kết nối mạng và mở lại.", "local": "Mở trang web để cài ứng dụng.", "install": "Cài ứng dụng", "help": "Thêm vào màn hình chính", "ios": "Trong Safari, chọn Chia sẻ → Thêm vào màn hình chính.", "other": "Trong menu trình duyệt, chọn cài ứng dụng hoặc thêm vào màn hình chính.", "installed": "Ứng dụng màn hình chính"}, "ne": {"pending": "अफलाइन पहुँच तयार हुँदैछ", "ready": "अफलाइन अध्ययन गर्न तयार", "offline": "अफलाइन · अध्ययन गर्न तयार", "error": "अफलाइन सेटअप पूरा भएन। इन्टरनेट जोडेर फेरि खोल्नुहोस्।", "local": "एप स्थापना गर्न वेबसाइट खोल्नुहोस्।", "install": "एप स्थापना गर्नुहोस्", "help": "होम स्क्रिनमा थप्नुहोस्", "ios": "Safari मा Share → Add to Home Screen छान्नुहोस्।", "other": "ब्राउजर मेनुमा एप स्थापना वा होम स्क्रिनमा थप्नुहोस् छान्नुहोस्।", "installed": "होम स्क्रिन एप"}, "fil": {"pending": "Inihahanda ang offline access", "ready": "Handa para sa offline na pag-aaral", "offline": "Offline · Handang mag-aral", "error": "Hindi pa tapos ang offline setup. Buksan muli habang online.", "local": "Buksan ang website para i-install ang app.", "install": "I-install ang app", "help": "Idagdag sa home screen", "ios": "Sa Safari, piliin ang Share → Add to Home Screen.", "other": "Sa browser menu, piliin ang Install app o Add to Home Screen.", "installed": "Home screen app"}});
+ const state=document.getElementById('pwaState'),button=document.getElementById('pwaInstall'),help=document.getElementById('pwaHelp'),language=document.getElementById('language');
+ const releaseVersion=new URL('../',import.meta.url).pathname.split('/').filter(Boolean).at(-1).slice(1);
+ const standalone=matchMedia('(display-mode: standalone)');const ios=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+ let status='pending',promptEvent=null,installed=false,helpOpen=false;
+ function render(){const l=labels[language.value]||labels.en;const isInstalled=installed||standalone.matches||navigator.standalone===true;state.textContent=l[status==='ready'&&!navigator.onLine?'offline':status];state.dataset.ready=String(status==='ready');button.hidden=status==='local'||isInstalled;button.textContent=promptEvent?l.install:l.help;button.setAttribute('aria-expanded',String(helpOpen&&!isInstalled));help.hidden=!helpOpen||isInstalled;help.textContent=ios?l.ios:l.other;}
+ let verification = 0;
+ function requestOfflineStatus(controller) {
+   return new Promise((resolve) => {
+     const channel = new MessageChannel();
+     const finish = (ready) => {
+       clearTimeout(timeout);
+       channel.port1.close();
+       resolve(ready);
+     };
+     const timeout = setTimeout(() => finish(false), 3000);
+     channel.port1.onmessage = (event) => finish(
+       event.data?.version === releaseVersion && event.data?.ready === true
+     );
+     try {
+       controller.postMessage({ type: 'wfd:offline-status', version: releaseVersion }, [channel.port2]);
+     } catch {
+       finish(false);
+     }
+   });
+ }
+ async function verify() {
+   const request = ++verification;
+   const controller = navigator.serviceWorker.controller;
+   const ready = controller ? await requestOfflineStatus(controller) : false;
+   if (request !== verification) return;
+   status = ready ? 'ready' : 'pending';
+   render();
+ }
+ window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();promptEvent=e;render()});window.addEventListener('appinstalled',()=>{installed=true;promptEvent=null;helpOpen=false;render()});
+ button.addEventListener('click',async()=>{if(promptEvent){const p=promptEvent;promptEvent=null;try{await p.prompt();const result=await p.userChoice;if(result.outcome==='accepted')helpOpen=false}catch(e){helpOpen=true}}else helpOpen=!helpOpen;render()});
+ language.addEventListener('change',render);window.addEventListener('online',verify);window.addEventListener('offline',render);standalone.addEventListener('change',render);
+ if(!('serviceWorker' in navigator)||!('caches' in window)||location.protocol==='file:'||!window.isSecureContext){status='local';render();return}
+ navigator.serviceWorker.addEventListener('controllerchange',verify);render();
+ navigator.serviceWorker.register('./sw.js',{scope:'./'}).then(reg=>{if(reg.active)verify();navigator.serviceWorker.ready.then(verify);const watch=w=>{if(!w)return;w.addEventListener('statechange',()=>{if(w.state==='redundant'&&status!=='ready'){status='error';render()}else if(w.state==='activated')verify()})};watch(reg.installing);reg.addEventListener('updatefound',()=>watch(reg.installing));}).catch(()=>{status='error';render()});
+})();
