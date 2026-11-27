@@ -26,7 +26,7 @@
 | Appearance | Follow the system theme or choose light or dark mode. |
 | Accessibility | Keyboard shortcuts, visible focus, labeled controls and responsive layout. |
 | Languages | Korean, English, Cebuano, Japanese, Simplified Chinese, Hindi, Spanish, Vietnamese, Nepali and Filipino. |
-| Offline access | Installable PWA with embedded audio and cached app assets after initial setup. |
+| Offline access | Installable PWA with individual MP3 playback and a complete offline cache after initial setup. |
 
 ## Getting started
 
@@ -43,20 +43,31 @@ Use the appearance icon in the header to cycle through **System → Light → Da
 - **iPhone / iPad:** Open in Safari, use Share → Add to Home Screen.
 - **Desktop / Android:** Use the browser's Install app or Add to Home Screen option when available.
 
-Open the app online first and wait for offline readiness before disconnecting. Installation and offline behavior depend on browser support and available storage.
+Open the app online first and wait for offline readiness before disconnecting. The service worker prepares all 191 recordings in the background; the study interface does not wait for that download. Installation and offline behavior depend on browser support and available storage.
 
 ## Technology
 
-HTML, CSS and vanilla JavaScript · Web Audio / HTML audio playback · localStorage · Service Worker · Web App Manifest · GitHub Pages.
+HTML, CSS and vanilla JavaScript · HTML audio playback with precomputed waveform peaks · localStorage · Service Worker · Web App Manifest · GitHub Pages.
 
 ```text
 wfd-study/
-├── index.html            # Interface, study logic, sentences and embedded audio
-├── manifest.webmanifest  # PWA metadata
-├── sw.js                 # Offline cache and updates
-├── icon-192.png          # App icon
-├── icon-512.png          # App icon
-├── apple-touch-icon.png  # iOS home screen icon
+├── index.html              # Interface and ordered script entry points
+├── app/v1.1.0/
+│   ├── styles/             # Base, components and layout (ordered cascade)
+│   └── src/                # Study, player, scoring, review, exam, theme, help
+│       ├── sentences.js    # Sentences and translations (no audio payload)
+│       ├── word-timings.js # Original word-alignment timings
+│       ├── waveforms.js    # Precomputed audio peak amplitudes
+│       └── locales.js     # Core interface translations
+├── audio/                  # 191 original MP3 recordings
+├── tests/                  # Node unit tests and Playwright browser smoke test
+├── .github/workflows/      # Continuous integration checks
+├── manifest.webmanifest
+├── sw.js                   # Versioned offline cache and media range responses
+├── icon-192.png
+├── icon-512.png
+├── apple-touch-icon.png
+├── CHANGELOG.md
 └── README.md
 ```
 
@@ -67,6 +78,26 @@ python3 -m http.server 8000
 ```
 
 Open `http://localhost:8000`. No build step is required. Production deployment uses HTTPS.
+
+## Architecture & quality
+
+The app remains framework-free and requires no production build step. The main UI loads versioned CSS and ordered deferred JavaScript files. The original application state is shared by these scripts for compatibility; this is an incremental refactor, not a full ES-module rewrite. Audio files are fetched individually and waveform peaks are calculated in advance, eliminating runtime waveform decoding. The service worker installs a complete release together and supports cached MP3 byte ranges for media playback.
+
+Run the core tests using Node.js 22:
+
+```bash
+node --test tests/core.test.cjs
+```
+
+Run the browser smoke test with a local HTTP server running:
+
+```bash
+pip install playwright==1.57.0
+python -m playwright install chromium
+python tests/browser_smoke.py
+```
+
+GitHub Actions is configured to run syntax, core and browser checks. Review the first browser CI result before publishing a stable release. When changing versioned assets, update the release directory and references in HTML, the service worker and the readiness check together. Reload after a new service worker takes control to see the updated interface. Existing learning records use the same localStorage keys; do not clear site data to update the app.
 
 ## Privacy & limitations
 
