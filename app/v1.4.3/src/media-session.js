@@ -1,3 +1,15 @@
+// Narrow compatibility exception: older Apple mobile Web Audio can obey the silent switch.
+// No web API exposes that switch. iPadOS desktop-mode identifiers need the touch hint.
+// This is a platform heuristic, not a capability test or proof of audible output.
+// https://bugs.webkit.org/show_bug.cgi?id=237322
+export function needsPlaybackCategory({userAgent='',platform='',maxTouchPoints=0}={}) {
+  return /iPad|iPhone|iPod/i.test(userAgent+' '+platform) ||
+    (/Mac/i.test(platform||userAgent) && maxTouchPoints>1);
+}
+export function allowsWordBuffer(environment, outputConfigured) {
+  return !!outputConfigured || !needsPlaybackCategory(environment);
+}
+
 // Configure output without claiming lock-screen controls (word clips and exams are separate).
 export function preparePlaybackSession(audioSession) {
   try {

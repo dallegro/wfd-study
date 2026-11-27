@@ -4,7 +4,7 @@ import { wordTimes } from './word-timings.js';
 import { alignDictation } from './scoring.js';
 import { readStored, writeStored } from './storage.js';
 import { normalizeDone } from './review-model.js';
-import { createMediaControls, preparePlaybackSession } from './media-session.js';
+import { createMediaControls, preparePlaybackSession, needsPlaybackCategory, allowsWordBuffer } from './media-session.js';
 import { createWordAudio } from './word-audio.js';
 import { getDayRange, getDayCount, getResumeIndex, isValidGoal } from './study-plan.js';
 
@@ -245,6 +245,7 @@ function playWord(i){
   mediaControls.release();
   // Set iOS playback category within the tap, before creating/resuming AudioContext.
   const outputConfigured=preparePlaybackSession(navigator.audioSession);
+  const allowBuffer=allowsWordBuffer(navigator,outputConfigured);
   const [start,end]=timing;
   cancelRun();
   waiting=true;
@@ -260,7 +261,7 @@ function playWord(i){
   paintClip();
   $('status').textContent=tr('준비');
   syncTransport();
-  const played=wordAudio.play({from,to,rate,outputConfigured,
+  const played=wordAudio.play({from,to,rate,allowBuffer,
     onStart:()=>{if(wordClip===token){token.phase='playing';$('status').textContent=clipText(3);}},
     onEnd:()=>{if(wordClip===token){wordPosition=to;endWordClip();}},
     onFallback:()=>playElementWord(token,from,rate),
@@ -268,7 +269,7 @@ function playWord(i){
   });
   if(!played)playElementWord(token,from,rate);
   else if(wordClip===token&&token.engine==='buffer')wordVisual();
-  if(outputConfigured&&!document.hidden)wordAudio.prepare();
+  if(allowBuffer&&!document.hidden)wordAudio.prepare();
 }
 a.addEventListener('timeupdate',checkWordClip);
 a.addEventListener('error',()=>{if(wordClip?.engine==='element')endWordClip(true);});
@@ -400,7 +401,7 @@ function reveal(v){
   shown=v;
   $('reveal').setAttribute('aria-expanded',String(v));
   $('answer').classList.toggle('hidden',!v);
-  if(v){syncTranscript();if(!document.hidden&&navigator.audioSession)wordAudio.prepare();}
+  if(v){syncTranscript();if(!document.hidden&&(!needsPlaybackCategory(navigator)||navigator.audioSession))wordAudio.prepare();}
   iconButton('reveal',v?'eyeoff':'eye',v?tr('원문 · 해석 가리기'):tr('원문 · 해석 보기'))
 }
 function refreshStudyUI(){
@@ -887,7 +888,7 @@ document.addEventListener('visibilitychange',()=>{
   if(document.hidden){
     if(wordClip)endWordClip();
     wordAudio.resetOutput();
-  }else {if(shown&&navigator.audioSession)wordAudio.prepare();recoverPlayback();}
+  }else {if(shown&&(!needsPlaybackCategory(navigator)||navigator.audioSession))wordAudio.prepare();recoverPlayback();}
 });
 window.addEventListener('pagehide',()=>{if(wordClip)endWordClip();wordAudio.resetOutput();});
 window.addEventListener('pageshow',recoverPlayback);

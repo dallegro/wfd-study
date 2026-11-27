@@ -208,11 +208,12 @@ test('worker adjusts bounded download batches without overriding restricted mode
 });
 
 const {createWordAudio}=require(path.join(src,'word-audio.js'));
-const {preparePlaybackSession}=require(path.join(src,'media-session.js'));
+const {preparePlaybackSession,needsPlaybackCategory,allowsWordBuffer}=require(path.join(src,'media-session.js'));
 function wordAudioFixture(options={}){
   const timers=new Map(),sources=[],decodes=[],requests=[],contexts=[];
   let next=0,clock=0;
-  const setTimer=(fn)=>{const key=++next;timers.set(key,fn);return key;};
+  const delays=new Map();
+  const setTimer=(fn,delay)=>{const key=++next;timers.set(key,fn);delays.set(key,delay);return key;};
   const clearTimer=key=>timers.delete(key);
   class Decoder{
     decodeAudioData(bytes,resolve){decodes.push(bytes);resolve({duration:5});}
@@ -237,9 +238,9 @@ function wordAudioFixture(options={}){
     fetchAudio:async(url,options)=>{requests.push({url,signal:options.signal});return {ok:true,arrayBuffer:async()=>new ArrayBuffer(8)};},
     setTimer,clearTimer});
   async function prepare(){engine.prepare();const [key,fn]=timers.entries().next().value;timers.delete(key);await fn();}
-  return {engine,prepare,sources,decodes,requests,timers,contexts,setClock:value=>{clock=value;}};
+  return {engine,prepare,sources,decodes,requests,timers,contexts,delays,setClock:value=>{clock=value;}};
 }
-const wordOptions={from:1,to:1.5,rate:1,outputConfigured:true,onStart(){},onEnd(){},onFallback(){},onError(){}};
+const wordOptions={from:1,to:1.5,rate:1,allowBuffer:true,onStart(){},onEnd(){},onFallback(){},onError(){}};
 test('decoded words use original buffer offsets and replace active sources without repeated decoding',async()=>{
   const f=wordAudioFixture(),e=f.engine;
   e.select('one');await f.prepare();
@@ -279,9 +280,9 @@ test('word-only audio configures playback category without claiming system contr
   assert.equal(preparePlaybackSession({set type(v){throw Error('unsupported')}}),false);
   assert.equal(preparePlaybackSession({get type(){return 'auto'},set type(v){}}),false);
 });
-test('prepared first word uses Web Audio only with confirmed output category; no bootstrap media playback',async()=>{
+test('prepared first word follows output policy; no bootstrap media playback',async()=>{
   const f=wordAudioFixture(),e=f.engine;e.select('one');await f.prepare();
-  assert.equal(e.play({...wordOptions,outputConfigured:false}),false);
+  assert.equal(e.play({...wordOptions,allowBuffer:false}),false);
   assert.equal(f.contexts.length,0);
   assert.equal(e.play(wordOptions),true);
   e.resetOutput();assert.equal(f.sources[0].stopped,true);
@@ -322,4 +323,37 @@ test('suspended context waits for successful resume before announcing playback',
   assert.equal(started,0);assert.equal(f.sources.length,0);
   resume();await Promise.resolve();await Promise.resolve();
   assert.equal(started,1);assert.equal(f.sources.length,1);
+});
+
+test('missing Audio Session preserves the Web Audio fast path on desktop and Android',()=>{
+  for(const environment of [
+    {userAgent:'Firefox Linux',platform:'Linux x86_64'},
+    {userAgent:'Chrome Android',platform:'Linux armv8l',maxTouchPoints:5},
+    {userAgent:'Macintosh Safari',platform:'MacIntel',maxTouchPoints:0},
+    {userAgent:'Windows Chrome',platform:'Win32'},
+    {}
+  ]){
+    assert.equal(needsPlaybackCategory(environment),false);
+    assert.equal(allowsWordBuffer(environment,false),true);
+  }
+});
+test('Apple mobile silent-switch compatibility exception is limited to unconfigured output',()=>{
+  for(const environment of [
+    {userAgent:'iPhone Safari',platform:'iPhone'},
+    {userAgent:'iPad Safari',platform:'iPad'},
+    {userAgent:'Macintosh Safari',platform:'MacIntel',maxTouchPoints:5}
+  ]){
+    assert.equal(needsPlaybackCategory(environment),true);
+    assert.equal(allowsWordBuffer(environment,false),false);
+    assert.equal(allowsWordBuffer(environment,true),true);
+  }
+});
+test('unresolved context startup uses the v1.4.2 latency bound and falls back once',async()=>{
+  const f=wordAudioFixture({state:'suspended',resume:()=>new Promise(()=>{})});
+  const e=f.engine;e.select('one');await f.prepare();
+  let fallback=0;
+  assert.equal(e.play({...wordOptions,onStart:()=>assert.fail(),onEnd:()=>assert.fail(),onFallback:()=>fallback++}),true);
+  const [key,timeout]=f.timers.entries().next().value;
+  assert.equal(f.delays.get(key),350);
+  timeout();timeout();assert.equal(fallback,1);assert.equal(f.contexts[0].state,'closed');
 });

@@ -62,11 +62,11 @@ export function createWordAudio({
       finally { if (pending === controller) pending = null; }
     }, delay);
   }
-  function play({ from, to, rate, outputConfigured, onStart=()=>{}, onEnd, onFallback, onError=onFallback }) {
+  function play({ from, to, rate, allowBuffer, onStart=()=>{}, onEnd, onFallback, onError=onFallback }) {
     stop();
-    // Without explicit playback-category support, prefer native media output.
-    // Web Audio may obey the iOS silent switch; output cannot be inferred from its clock.
-    if (!outputConfigured || !buffer || rate !== 1 || !AudioContext) return false;
+    // The caller applies the narrow platform compatibility policy. Lack of Audio
+    // Session support alone is not a Web Audio failure.
+    if (!allowBuffer || !buffer || rate !== 1 || !AudioContext) return false;
     const start = Math.max(0, from), end = Math.min(buffer.duration, to);
     if (!(end > start)) return false;
     try {
@@ -113,7 +113,8 @@ export function createWordAudio({
       if (ctx.state === 'running') begin();
       else {
         // Call resume directly within the user's activation, not after a fetch/decode.
-        job.watchdog = setTimer(fail, 1500);
+        // Preserve the v1.4.2 startup-latency bound.
+        job.watchdog = setTimer(fail, 350);
         Promise.resolve(ctx.resume()).then(begin,fail);
       }
       return true;

@@ -10,8 +10,8 @@ with sync_playwright() as p:
     context = browser.new_context(locale='en-AU', viewport={'width': 390, 'height': 844})
     context.route('https://static.cloudflareinsights.com/**', lambda route: route.abort())
     # Capture app registrations without depending on the headless OS media UI.
-    # Firefox 144 lacks Audio Session; test its actual native path. Chromium/WebKit
-    # additionally exercise the positive capability branch using an explicit session mock.
+    # Firefox uses its real capability set; Chromium/WebKit exercise the optional
+    # category integration with a mock. All must preserve decoded playback.
     simulate_category = ENGINE != 'firefox'
     context.add_init_script("""window.mediaActions = {};
       const media = {setActionHandler(name, fn) {window.mediaActions[name] = fn;},
@@ -61,43 +61,68 @@ with sync_playwright() as p:
     page.locator('#language').select_option('en')
     complete = "document.querySelector('#status').textContent === 'Word playback complete'"
     words = page.locator('#english [data-word-index]')
+    # A prepared first word must use the fast path even without Audio Session.
+    page.wait_for_function('decodeCount > 0', timeout=15000)
+    words.nth(3).click()
+    wait_complete()
+    assert page.evaluate("bufferPlayCalls.length === 1 && bufferPlayCalls[0].duration > 0 && nativePlayCalls.length === 0")
     if simulate_category:
-        page.wait_for_function('decodeCount > 0', timeout=15000)
-        words.nth(3).click()
-        page.wait_for_function('bufferPlayCalls.length === 1', timeout=10000)
-        assert page.evaluate("bufferPlayCalls[0].category === 'playback' && bufferPlayCalls[0].duration > 0 && nativePlayCalls.length === 0")
-        wait_complete()
-        words.nth(2).click()
-        words.nth(4).click()
-        wait_complete()
-        assert page.evaluate('bufferPlayCalls.length >= 3')
+        assert page.evaluate("bufferPlayCalls[0].category === 'playback'")
     else:
-        # No fake output capability: first word must actually advance the native media timeline.
-        assert not page.evaluate('realAudioSessionSupported'), 'Firefox now supports Audio Session; update this compatibility test'
-        words.nth(3).click()
-        wait_complete()
-        assert page.evaluate("nativePlayCalls.length === 1 && bufferPlayCalls.length === 0 && document.querySelector('#player').currentTime > nativePlayCalls[0].offset")
-        words.nth(2).click()
-        words.nth(4).click()
-        wait_complete()
-        assert page.evaluate('nativePlayCalls.length === 3 && bufferPlayCalls.length === 0')
+        assert not page.evaluate('realAudioSessionSupported')
+    words.nth(2).click()
+    words.nth(4).click()
+    wait_complete()
+    assert page.evaluate('bufferPlayCalls.length >= 3 && nativePlayCalls.length === 0')
     assert page.locator('.clip-active').count() == 0
     assert page.evaluate("navigator.mediaSession.metadata == null")
-    # Foreground restoration uses the appropriate engine without full-sentence warmup.
+    # Foreground restoration must not require native warm-up.
     page.evaluate("window.dispatchEvent(new Event('pagehide')); window.dispatchEvent(new Event('pageshow'))")
-    counter = 'bufferPlayCalls' if simulate_category else 'nativePlayCalls'
-    previous_calls = page.evaluate(f'{counter}.length')
+    previous_calls=page.evaluate('bufferPlayCalls.length')
     words.nth(3).click()
-    page.wait_for_function(f'{counter}.length === {previous_calls + 1}', timeout=10000)
     wait_complete()
-    print(f'{ENGINE}: first word, rapid taps, foreground restoration via {counter} passed')
-    # Unsupported category selects the original native player without forced warmup.
-    page.evaluate("Object.defineProperty(navigator,'audioSession',{value:{get type(){return 'auto'},set type(v){}},configurable:true})")
+    assert page.evaluate('bufferPlayCalls.length') == previous_calls + 1
+    assert page.evaluate('nativePlayCalls.length') == 0
+    # Missing/ineffective Audio Session is not a reason to downgrade desktop Web Audio.
+    page.evaluate("""() => {
+      window.savedSession=Object.getOwnPropertyDescriptor(navigator,'audioSession');
+      Object.defineProperty(navigator,'audioSession',{value:{get type(){return 'auto'},set type(v){}},configurable:true});
+    }""")
+    previous_calls=page.evaluate('bufferPlayCalls.length')
+    words.nth(3).click()
+    wait_complete()
+    assert page.evaluate('bufferPlayCalls.length') == previous_calls + 1
+    assert page.evaluate('nativePlayCalls.length') == 0
+    # Explicitly emulate the narrow Apple-mobile compatibility exception.
+    # This checks routing and native progress, not actual iPhone sound output.
+    page.evaluate("""() => {
+      window.savedPlatform=Object.getOwnPropertyDescriptor(navigator,'platform');
+      window.savedUA=Object.getOwnPropertyDescriptor(navigator,'userAgent');
+      Object.defineProperty(navigator,'platform',{value:'iPhone',configurable:true});
+      Object.defineProperty(navigator,'userAgent',{value:'iPhone Safari',configurable:true});
+      Object.defineProperty(navigator,'audioSession',{value:undefined,configurable:true});
+    }""")
     previous_calls=page.evaluate('nativePlayCalls.length')
-    page.locator('#english [data-word-index]').nth(3).click()
-    assert page.evaluate('nativePlayCalls.length') == previous_calls + 1
+    previous_buffers=page.evaluate('bufferPlayCalls.length')
+    words.nth(3).click()
     wait_complete()
+    assert page.evaluate('nativePlayCalls.length') == previous_calls + 1
+    assert page.evaluate('bufferPlayCalls.length') == previous_buffers
     assert page.evaluate('document.querySelector("#player").currentTime > nativePlayCalls[nativePlayCalls.length-1].offset')
+    # A supported playback category removes that exception, even on Apple mobile.
+    page.evaluate("Object.defineProperty(navigator,'audioSession',{value:{type:'auto'},configurable:true})")
+    words.nth(3).click()
+    wait_complete()
+    assert page.evaluate('bufferPlayCalls.length') == previous_buffers + 1
+    assert page.evaluate("bufferPlayCalls[bufferPlayCalls.length-1].category === 'playback'")
+    assert page.evaluate('nativePlayCalls.length') == previous_calls + 1
+    page.evaluate("""() => {
+      for(const [key,descriptor] of [['audioSession',window.savedSession],['platform',window.savedPlatform],['userAgent',window.savedUA]]){
+        if(descriptor)Object.defineProperty(navigator,key,descriptor);
+        else delete navigator[key];
+      }
+    }""")
+    print(f'{ENGINE}: decoded playback, foreground restore, optional category and Apple-mobile fallback passed')
     page.locator('#stop').click()
     page.wait_for_function("document.querySelector('#player').currentTime > 0.1")
     assert page.evaluate("navigator.mediaSession.metadata.title") == 'WFD #001'
