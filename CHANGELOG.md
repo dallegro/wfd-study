@@ -3,6 +3,19 @@
 
 All notable changes to wfd. are documented in this file.
 
+## 1.4.3 — Unreleased
+
+### Fixed
+- Initialize the optional playback audio session for word-only playback without claiming system media controls.
+- Use the native player until media playback has made progress, including after returning from the background.
+- Fall back on failed, interrupted or prematurely ended Web Audio playback instead of reporting false completion.
+- Bound native word playback startup, cancel stale callbacks, and preserve user-selected seek positions.
+
+### Tests
+- Expanded core test coverage from 31 to 36 tests.
+- Added cold-start, output category, foreground restoration, early-end, watchdog and rejected-resume regression coverage.
+- Physical iOS audio output still requires retesting.
+
 ## [1.4.2] - 2026-11-27
 
 ### Changed

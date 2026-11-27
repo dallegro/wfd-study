@@ -15,6 +15,13 @@ with sync_playwright() as p:
         setPositionState(value) {this.position = value;}};
       Object.defineProperty(navigator, 'mediaSession', {value: media, configurable: true});
       window.MediaMetadata = class {constructor(value) {Object.assign(this, value);}};
+      Object.defineProperty(navigator, 'audioSession', {value: {type:'auto'}, configurable: true});
+      window.nativePlayCalls=[];
+      const nativePlay=HTMLMediaElement.prototype.play;
+      HTMLMediaElement.prototype.play=function(...args){
+        if(this.id==='player')window.nativePlayCalls.push({category:navigator.audioSession.type,offset:this.currentTime});
+        return nativePlay.apply(this,args);
+      };
     """)
     page = context.new_page()
     errors = []
@@ -24,12 +31,20 @@ with sync_playwright() as p:
     # Word playback must work, stop cleanly and leave normal sentence playback available.
     page.locator('#language').select_option('en')
     page.locator('#english [data-word-index]').nth(3).click()
+    assert page.evaluate("nativePlayCalls.length === 1 && nativePlayCalls[0].category === 'playback'")
+    assert page.evaluate("navigator.mediaSession.metadata == null")
     page.wait_for_function("document.querySelector('#status').textContent === 'Word playback complete'", timeout=10000)
     assert page.locator('.clip-active').count() == 0
     page.locator('#english [data-word-index]').nth(2).click()
     page.locator('#english [data-word-index]').nth(4).click()
     page.wait_for_function("document.querySelector('#status').textContent === 'Word playback complete'", timeout=10000)
     assert page.locator('.clip-active').count() == 0
+    # Foreground restoration must bootstrap the output again without playing the whole sentence.
+    page.evaluate("window.dispatchEvent(new Event('pagehide')); window.dispatchEvent(new Event('pageshow'))")
+    previous_calls=page.evaluate('nativePlayCalls.length')
+    page.locator('#english [data-word-index]').nth(3).click()
+    assert page.evaluate('nativePlayCalls.length') == previous_calls + 1
+    page.wait_for_function("document.querySelector('#status').textContent === 'Word playback complete'", timeout=10000)
     page.locator('#stop').click()
     page.wait_for_function("document.querySelector('#player').currentTime > 0.1")
     assert page.evaluate("navigator.mediaSession.metadata.title") == 'WFD #001'
