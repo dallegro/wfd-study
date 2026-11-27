@@ -47,14 +47,15 @@ with sync_playwright() as p:
     assert page.locator('#number').get_attribute('data-index') == '2'
     page.locator('#reviewOpen').click()
     assert page.locator('#reviewDialog').is_visible()
-    # Enter a recorded sentence and return to the previous study position.
+    # History is read-only in v1.5.0.
     page.locator('#reviewBody .plus-tabs button').nth(2).click()
-    page.locator('#reviewBody .plus-item button').first.click()
-    assert page.locator('#reviewSession').is_visible()
-    assert page.locator('#number').get_attribute('data-index') == '1'
-    page.locator('#reviewExit').click()
-    assert page.locator('#number').get_attribute('data-index') == '2'
+    assert page.locator('.read-only-history').count() == 1
+    assert page.locator('.read-only-history button:not(.flow-more)').count() == 0
+    page.locator('.read-only-history summary').first.click()
+    assert page.locator('.history-attempt').count() == 1
     assert page.locator('#reviewSession').is_hidden()
+    page.locator('#reviewClose').click()
+    assert page.locator('#number').get_attribute('data-index') == '2'
     page.locator('#examOpen').click()
     assert page.locator('#examDialog').is_visible()
     page.locator('#studyHome').click()
