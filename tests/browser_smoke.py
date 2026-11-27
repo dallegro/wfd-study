@@ -6,12 +6,27 @@ with sync_playwright() as p:
     browser = p.chromium.launch()
     context = browser.new_context(locale='ko-KR', viewport={'width':390,'height':844}, color_scheme='light')
     context.route('https://static.cloudflareinsights.com/**', lambda route: route.abort())
+    # Capture unexpected layout shifts, including those before DOMContentLoaded.
+    context.add_init_script("""window.wfdShifts = [];
+      if (PerformanceObserver.supportedEntryTypes.includes('layout-shift')) {
+        new PerformanceObserver(list => {
+          for (const entry of list.getEntries()) {
+            if (!entry.hadRecentInput) window.wfdShifts.push(entry.value);
+          }
+        }).observe({type:'layout-shift', buffered:true});
+      }""")
     page = context.new_page()
     errors = []
     page.on('pageerror', lambda error: errors.append(str(error)))
     page.goto(URL, wait_until='domcontentloaded')
     page.wait_for_function("document.getElementById('number').textContent === '#001'")
     page.wait_for_function("Number.isFinite(document.getElementById('player').duration)")
+    assert page.evaluate("!document.documentElement.hasAttribute('data-wfd-booting')")
+    page.wait_for_function("document.getElementById('pwaState').dataset.ready === 'true'", timeout=60000)
+    page.wait_for_timeout(250)
+    initial_shift = page.evaluate("window.wfdShifts.reduce((a,b)=>a+b,0)")
+    print(f'Initial mobile layout shift sum: {initial_shift:.4f}')
+    assert initial_shift <= 0.1, f'Unexpected initial layout shifts: {initial_shift}'
     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
     page.locator('#themeToggle').click()  # system -> light
     page.locator('#themeToggle').click()  # light -> dark
@@ -36,7 +51,7 @@ with sync_playwright() as p:
     page.set_viewport_size({'width':1280,'height':900})
     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
     page.wait_for_function("document.getElementById('pwaState').dataset.ready === 'true'", timeout=60000)
-    assert page.evaluate("async()=> (await (await caches.open('wfd-pwa-refactor-1.1.0')).keys()).length") == 210
+    assert page.evaluate("async()=> (await (await caches.open('wfd-pwa-refactor-1.1.1')).keys()).length") == 210
     context.set_offline(True)
     page.reload(wait_until='domcontentloaded')
     page.wait_for_function("Number.isFinite(document.getElementById('player').duration)")
