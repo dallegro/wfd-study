@@ -1,0 +1,10 @@
+(function(){
+const root=document.documentElement,button=document.getElementById('themeToggle'),language=document.getElementById('language'),mq=matchMedia('(prefers-color-scheme: dark)');
+const modes=['system','light','dark'];
+const labels={ko:['화면 테마','시스템 설정','라이트','다크','다음'],en:['Appearance','System','Light','Dark','Next'],ceb:['Tema','Sistema','Hayag','Ngitngit','Sunod'],ja:['外観','システム','ライト','ダーク','次'],zh:['外观','跟随系统','浅色','深色','下一个'],hi:['थीम','सिस्टम','लाइट','डार्क','अगला'],es:['Apariencia','Sistema','Claro','Oscuro','Siguiente'],vi:['Giao diện','Hệ thống','Sáng','Tối','Tiếp theo'],ne:['थिम','सिस्टम','उज्यालो','गाढा','अर्को'],fil:['Tema','System','Maliwanag','Madilim','Susunod']};
+const paths={system:'<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8m-4-4v4"/>',light:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/>',dark:'<path d="M20.5 14.5A9 9 0 0 1 9.5 3.5 9 9 0 1 0 20.5 14.5Z"/>'};
+let preference=root.dataset.themePreference||'system';
+function render(){const theme=preference==='system'?(mq.matches?'dark':'light'):preference;root.dataset.theme=theme;root.dataset.themePreference=preference;document.querySelector('meta[name="theme-color"]').content=theme==='dark'?'#15161a':'#fafafa';const l=labels[language.value]||labels.en;const i=modes.indexOf(preference);const next=(i+1)%modes.length;const name=l[0]+': '+l[i+1]+' · '+l[4]+': '+l[next+1];button.title=name;button.setAttribute('aria-label',name);button.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+paths[preference]+'</svg>';}
+button.addEventListener('click',()=>{preference=modes[(modes.indexOf(preference)+1)%modes.length];try{localStorage.setItem('wfd191_theme',preference)}catch(e){}render()});
+if(mq.addEventListener)mq.addEventListener('change',render);else if(mq.addListener)mq.addListener(render);language.addEventListener('change',render);render();
+})();

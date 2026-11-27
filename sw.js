@@ -1,35 +1,49 @@
-/*
-    ╭──────────────────────────────────────────────────────────╮
-    │      ▂ ▅ █ ▅ ▂    wfd.                                   │
-    │                   WRITE FROM DICTATION                   │
-    ╰──────────────────────────────────────────────────────────╯
-
-    Designed & developed by Daseul Kim (김다슬)
-    @ektmfdl  /  github.com/dallegro
-    Built for learners, by a learner.
-
-    Independent practice tool · Not an official Pearson service.
-    Learning materials and audio: Banditbul Education (Nov 19).
-*/
-const CACHE = 'wfd-pwa-theme-e3da7774d7ac';
-const PREFIX = 'wfd-pwa-';
-const APP = new URL('./index.html', self.registration.scope).href;
+/* wfd. — versioned offline cache. Original recordings remain byte-identical. */
+const VERSION = '1.1.0';
+const CACHE = `wfd-pwa-refactor-${VERSION}`;
 const ROOT = new URL('./', self.registration.scope).href;
-const ASSETS = ['manifest.webmanifest','icon-192.png','icon-512.png','apple-touch-icon.png'].map(p=>new URL(p,ROOT).href);
-self.addEventListener('install',event=>{
- event.waitUntil((async()=>{const cache=await caches.open(CACHE);await cache.addAll([APP,...ASSETS].map(url=>new Request(url,{cache:'reload'})));await self.skipWaiting();})());
-});
-self.addEventListener('activate',event=>{
- event.waitUntil((async()=>{for(const key of await caches.keys()){if(key.startsWith(PREFIX)&&key!==CACHE)await caches.delete(key)}await self.clients.claim()})());
-});
-self.addEventListener('fetch',event=>{
- const req=event.request;if(req.method!=='GET')return;
- const url=new URL(req.url);if(url.origin!==self.location.origin)return;
- const canonical=url.origin+url.pathname;
+const url = path => new URL(path, ROOT).href;
+const APP = url('index.html');
+const SOURCE = ['sentences','word-timings','waveforms','locales','scoring','study','player-ui','pwa','help','review-exam','theme'];
+const SHELL = [APP, ...['manifest.webmanifest','icon-192.png','icon-512.png','apple-touch-icon.png'].map(url), ...SOURCE.map(n=>url(`app/v${VERSION}/src/${n}.js`)), ...['base','components','layout'].map(n=>url(`app/v${VERSION}/styles/${n}.css`))];
+const AUDIO = Array.from({length:191},(_,i)=>url(`audio/${String(i+1).padStart(3,'0')}.mp3`));
+const assets = new Set([...SHELL,...AUDIO]);
+async function precache(){
+ const cache=await caches.open(CACHE);
+ try {
+  await cache.addAll(SHELL.map(p=>new Request(p,{cache:'reload'})));
+  // Download audio in the background, with bounded concurrency. Readiness requires all 191 files.
+  for(let i=0;i<AUDIO.length;i+=8) await cache.addAll(AUDIO.slice(i,i+8).map(p=>new Request(p,{cache:'reload'})));
+ } catch(e){ await caches.delete(CACHE); throw e; }
+}
+self.addEventListener('install',e=>e.waitUntil(precache().then(()=>self.skipWaiting())));
+self.addEventListener('activate',e=>e.waitUntil((async()=>{
+ for(const k of await caches.keys()) if(k.startsWith('wfd-pwa-')&&k!==CACHE) await caches.delete(k);
+ await self.clients.claim();
+})()));
+async function serveAsset(req, canonical){
+ const cache=await caches.open(CACHE);
+ const cached=await cache.match(canonical);
+ if(!cached) return fetch(req);
+ const range=req.headers.get('range');
+ if(!range||!AUDIO.includes(canonical)) return cached;
+ // Safari and Chromium may request partial MP3 responses. Cached assets are complete files.
+ const bytes=await cached.arrayBuffer(); const size=bytes.byteLength;
+ const match=/^bytes=(\d*)-(\d*)$/.exec(range);
+ const invalid=()=>new Response(null,{status:416,headers:{'Content-Range':`bytes */${size}`}});
+ if(!match||(!match[1]&&!match[2])) return invalid();
+ const start=match[1]?Number(match[1]):Math.max(0,size-Number(match[2]));
+ const end=match[1]&&match[2]?Math.min(Number(match[2]),size-1):size-1;
+ if(!Number.isSafeInteger(start)||!Number.isSafeInteger(end)||start<0||start>=size||end<start) return invalid();
+ return new Response(bytes.slice(start,end+1),{status:206,headers:{'Content-Type':'audio/mpeg','Accept-Ranges':'bytes','Content-Range':`bytes ${start}-${end}/${size}`,'Content-Length':String(end-start+1)}});
+}
+self.addEventListener('fetch',e=>{
+ const req=e.request;if(req.method!=='GET')return;
+ const parsed=new URL(req.url);if(parsed.origin!==self.location.origin)return;
+ const canonical=parsed.origin+parsed.pathname;
  if(req.mode==='navigate'&&(canonical===ROOT||canonical===APP)){
-  event.respondWith((async()=>{const cache=await caches.open(CACHE);const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),3500);try{
-   const response=await fetch(req,{signal:controller.signal});if(response.ok&&response.headers.get('content-type')?.includes('text/html')){try{await cache.put(APP,response.clone())}catch(e){}return response}return (await cache.match(APP))||response;
-  }catch(e){return (await cache.match(APP))||new Response('Offline setup incomplete. Please reconnect and reopen wfd.',{status:503,headers:{'Content-Type':'text/plain; charset=utf-8'}})}finally{clearTimeout(timer)}})());return;
+  // Keep HTML and its versioned assets on the same release. A new worker updates them together.
+  e.respondWith((async()=>{const c=await caches.open(CACHE);return (await c.match(APP))||fetch(req)})());return;
  }
- if(ASSETS.includes(canonical)){event.respondWith((async()=>{const cache=await caches.open(CACHE);return (await cache.match(canonical))||fetch(req)})())}
+ if(assets.has(canonical)) e.respondWith(serveAsset(req,canonical));
 });
