@@ -20,7 +20,9 @@
 
 ## About
 
-wfd. combines repeated listening, active recall, dictation, and spaced review in a lightweight, offline-capable web app. No account required.
+wfd. combines repeated listening, active recall, dictation, and spaced review in a lightweight, offline-capable web app.
+
+Designed for everyday learning across mobile, tablet, and desktop devices, with adaptive performance and no account required.
 
 ## Features
 
@@ -30,12 +32,14 @@ wfd. combines repeated listening, active recall, dictation, and spaced review in
 | Audio playback | Adjustable speed, repetition, intervals, and playback order |
 | Background listening | System media controls and lock-screen playback on supported browsers |
 | Memorization | Transcripts, translations, and synchronized word highlighting |
-| Dictation | Word-level feedback and individual word playback |
+| Word playback | Tap individual words to listen to the corresponding original audio |
+| Dictation | Word-level feedback for spelling, omissions, and incorrect words |
 | Review | Spaced repetition, mistakes, learning history, and weak words |
 | Exam practice | Four random sentences with timed responses |
 | Appearance | System, light, and dark themes |
 | Accessibility | Keyboard shortcuts, labeled controls, and responsive layouts |
 | Languages | Korean, English, Cebuano, Japanese, Simplified Chinese, Hindi, Spanish, Vietnamese, Nepali, and Filipino |
+| Performance | Adaptive rendering, on-demand audio loading, and optimized word playback |
 | Offline | Installable PWA with locally cached recordings |
 
 ## Getting started
@@ -51,7 +55,9 @@ wfd. combines repeated listening, active recall, dictation, and spaced review in
 - **iOS / iPadOS:** Safari → Share → Add to Home Screen
 - **Android / Desktop:** Install app or Add to Home Screen, where supported.
 
-Open the app online and wait for offline readiness before disconnecting. Online practice can begin while audio downloads in the background; if offline storage fails, reopen the app while connected. Playback visuals retain the browser's native refresh cadence when rendering is healthy and reduce updates under sustained pressure. Background audio download concurrency adapts to available connection hints and measured batch times.
+Online practice can begin while audio is being prepared in the background.
+
+Wait until offline readiness is confirmed before disconnecting from the internet. If offline preparation fails, reopen the app while connected.
 
 ### Background listening
 
@@ -68,14 +74,70 @@ Dictation and review restrict external navigation to protect answers and progres
 
 Background playback and automatic transitions depend on browser and operating system restrictions. If playback stops, return to the app and resume.
 
+### Word playback
+
+Tap a word in the transcript or supported dictation feedback to hear the corresponding part of the original recording.
+
+At normal playback speed, supported browsers prepare only the current sentence and use Web Audio for responsive word playback.
+
+The original media-element playback method remains available when:
+
+- The decoded audio is not yet ready.
+- Web Audio is unavailable or fails.
+- A non-default playback speed is selected.
+
+This preserves the existing pitch-corrected playback behavior at other speeds.
+
+## Performance
+
+wfd. is designed to reduce unnecessary processing without compromising the experience on capable devices.
+
+### Adaptive rendering
+
+- Preserves the browser's native refresh cadence when rendering is healthy.
+- Reduces visual update frequency under sustained rendering pressure.
+- Restores normal rendering cadence when performance recovers.
+- Suspends unnecessary visual updates when the page is hidden.
+
+### Audio efficiency
+
+- Loads sentence recordings on demand.
+- Uses precomputed waveforms and word timings.
+- Retains only the current decoded sentence for optimized word playback.
+- Cancels superseded word playback to avoid overlapping audio.
+- Preserves the original recordings without additional compression.
+
+### Resource management
+
+- Defers sentence-list rendering until needed.
+- Reuses existing sentence buttons.
+- Reduces redundant DOM and system media updates.
+- Adapts background download concurrency to available connection information and measured batch times.
+
+No separate low-performance mode is required.
+
+### Offline resilience
+
+- Installs the app shell independently of the complete audio library.
+- Reuses existing cached recordings across compatible releases.
+- Resumes incomplete audio preparation.
+- Falls back to online playback when cache access fails.
+- Verifies offline readiness against the required cached assets.
+
+Actual performance varies by device, browser, network, and operating system.
+
 ## Technology
 
 - HTML and CSS
 - Vanilla JavaScript with native ES modules
 - HTML Audio API
+- Web Audio API
 - Media Session API
 - Audio Session API, where supported
+- Page Visibility API
+- Network Information API, where supported
 - localStorage
+- Cache Storage API
 - Service Worker and Web App Manifest
 - GitHub Pages
 
@@ -88,6 +150,24 @@ wfd-study/
 ├── app/
 │   └── v1.4.2/
 │       ├── src/
+│       │   ├── main.js
+│       │   ├── study.js
+│       │   ├── study-plan.js
+│       │   ├── player-ui.js
+│       │   ├── word-audio.js
+│       │   ├── media-session.js
+│       │   ├── adaptive-performance.js
+│       │   ├── review-exam.js
+│       │   ├── review-model.js
+│       │   ├── scoring.js
+│       │   ├── storage.js
+│       │   ├── pwa.js
+│       │   ├── locales.js
+│       │   ├── sentences.js
+│       │   ├── word-timings.js
+│       │   ├── waveforms.js
+│       │   ├── theme.js
+│       │   └── help.js
 │       └── styles/
 ├── audio/
 ├── docs/
@@ -123,51 +203,91 @@ npm test
 
 ### Testing
 
-- Core logic and data integrity tests
-- Browser integration tests
-- Offline playback regression tests
-- Cross-browser playback checks using Chromium, Firefox, and WebKit
-- Simulated slow CPU and network checks using Chromium
-- GitHub Actions continuous integration
+The current release includes 31 automated core tests covering:
 
-Browser-engine tests do not replace physical-device testing.
+- Dictation scoring and data integrity.
+- Study planning and local storage.
+- Review scheduling and learning history.
+- Offline cache integrity and recovery.
+- Media controls and playback state.
+- Adaptive rendering and download concurrency.
+- Word audio lifecycle and fallback behavior.
 
-See [Architecture](docs/ARCHITECTURE.md) for module responsibilities, browser testing, and release procedures.
+Browser integration checks cover:
 
-See [Changelog](CHANGELOG.md) for version history.
+- Mobile and desktop layouts.
+- Learning progress and navigation.
+- Theme and language settings.
+- Dictation, review, and exam workflows.
+- Offline playback.
+- Rapid word selection.
+- System media controls.
+- Simulated slow CPU and network conditions.
+
+GitHub Actions runs automated checks using Chromium, Firefox, and WebKit.
+
+Browser-engine tests and simulated performance conditions do not replace physical-device testing. Actual mobile playback latency, memory usage, battery consumption, and older OS compatibility require further measurement.
+
+## Documentation
+
+- [Architecture](docs/ARCHITECTURE.md) — Module responsibilities, testing, and release procedures.
+- [Changelog](CHANGELOG.md) — Version history and notable changes.
+- [Releases](https://github.com/dallegro/wfd-study/releases) — Published versions.
 
 ## Privacy & limitations
 
 - Learning records and preferences are stored locally in the browser.
+- No account is required.
 - Clearing browser data may erase learning records.
 - Learning records are not synchronized across devices.
 - Cloudflare Web Analytics measures site usage and performance.
 - Dictation feedback is for practice and does not represent official Pearson scores.
 - Word-level audio playback may not perfectly isolate individual words.
 - Background playback depends on browser and operating system support.
+- Offline storage is subject to browser storage policies and available device storage.
 
 ## 한국어 안내
 
 PTE WFD 191문장을 반복 듣기, 암기, 받아쓰기, 복습 및 실전 연습으로 학습할 수 있는 웹앱입니다.
 
-일일 학습량과 학습 회차를 설정하고, 암기 모드에서 문장을 학습한 뒤 받아쓰기 모드에서 기억을 점검하세요. 오답과 학습 기록은 복습 메뉴에서 확인할 수 있습니다.
+### 학습 방법
+
+1. 일일 학습량과 학습 회차를 설정합니다.
+2. 암기 모드에서 음성을 듣고 문장을 학습합니다.
+3. 받아쓰기 모드에서 기억한 문장을 입력합니다.
+4. 채점 결과를 확인하고 틀린 단어를 학습합니다.
+5. 복습 또는 실전 연습으로 학습 내용을 점검합니다.
+
+### 음성 재생
+
+문장 속 단어를 누르면 원본 음원의 해당 구간을 들을 수 있습니다.
+
+지원되는 브라우저에서는 현재 문장의 음원을 미리 준비하여 단어별 재생 지연을 줄입니다. 음원이 준비되지 않았거나 다른 배속을 사용하는 경우 기존 재생 방식이 적용됩니다.
 
 지원되는 환경에서는 다른 앱을 사용하거나 화면을 잠근 상태에서도 음성을 들을 수 있습니다. 백그라운드 연속 재생 및 미디어 제어는 기기와 브라우저에 따라 다를 수 있습니다.
 
-학습 기록은 현재 브라우저에 저장되며, 최초 오프라인 준비가 완료되면 인터넷 연결 없이 학습할 수 있습니다.
+### 성능 최적화
+
+기기의 실제 렌더링 상태와 네트워크 환경에 따라 화면 갱신 및 음원 다운로드를 자동으로 조절합니다.
+
+별도의 저사양 모드 설정 없이 다양한 기기에서 학습할 수 있도록 설계되었습니다.
+
+### 오프라인 학습
+
+최초 오프라인 준비가 완료되면 인터넷 연결 없이 학습할 수 있습니다.
+
+학습 기록은 현재 브라우저에 저장됩니다. 브라우저 데이터를 삭제하면 학습 기록이 사라질 수 있습니다.
 
 ## Credits
 
 Designed & developed by [Daseul Kim (김다슬)](https://github.com/dallegro) · [@ektmfdl](https://www.instagram.com/ektmfdl/)
 
-Learning materials and audio: Banditbul Education (Nov 19). Third-party materials remain subject to their respective rights. Attribution does not establish redistribution permission.
+Learning materials and audio: Banditbul Education (Nov 19).
+
+Third-party materials remain subject to their respective rights. Attribution does not establish redistribution permission.
 
 Independent practice tool. Not affiliated with or endorsed by Pearson.
 
 <div align="center">
   <sub>Built for learners, by a learner.</sub>
 </div>
-
-
-### Word playback performance
-At normal speed, supported browsers prepare only the current sentence and play the selected segment through Web Audio when ready. The original media-element path remains available while preparation is incomplete, if Web Audio fails, or at other speeds to preserve pitch correction. Full-sentence and background playback continue to use the original media element. Physical mobile tap latency has not yet been benchmarked.
