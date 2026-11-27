@@ -1,6 +1,7 @@
 import { $, syncTranscript, a, idx, wordClip, endWordClip, refreshPlaybackSummary, refreshNavigation } from './study.js';
 import { waveforms } from './waveforms.js';
 import { lang } from './locales.js';
+import { createFrameGovernor } from './adaptive-performance.js';
 
 // Actual audio amplitudes, not a decorative waveform. Native range is keyboard and touch accessible.
 const seek=$('seek'),wave=$('wave');
@@ -19,8 +20,8 @@ const fillBars=bars.map(()=>{
   return b
 });
 wave.insertBefore(fill,seek);
-let frameId=null,lastPaint=-Infinity,waveDirty=true;
-const PAINT_INTERVAL=50; // 20 visual updates/second; audio playback is independent.
+let frameId=null,waveDirty=true;
+const frameGovernor=createFrameGovernor();
 function timeLabel(n){
   n=Number.isFinite(n)?Math.max(0,Math.floor(n)):0;
   return Math.floor(n/60)+':'+String(n%60).padStart(2,'0')
@@ -45,10 +46,7 @@ function syncPlayer(){
 function tick(now){
   frameId=null;
   if(document.hidden||a.paused||a.ended)return;
-  if(now-lastPaint>=PAINT_INTERVAL){
-    lastPaint=now;
-    syncPlayer();
-  }
+  if(frameGovernor.shouldPaint(now))syncPlayer();
   frameId=requestAnimationFrame(tick);
 }
 function stopVisual(){
@@ -58,7 +56,7 @@ function stopVisual(){
 }
 function startVisual(){
   if(document.hidden||frameId!==null)return;
-  lastPaint=-Infinity;
+  frameGovernor.reset();
   frameId=requestAnimationFrame(tick);
 }
 function drawWave(values){

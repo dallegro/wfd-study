@@ -4,7 +4,7 @@ const CACHE = `wfd-pwa-refactor-${VERSION}`;
 const ROOT = new URL('./', self.registration.scope).href;
 const url = path => new URL(path, ROOT).href;
 const APP = url('index.html');
-const SOURCE = ['sentences','word-timings','waveforms','locales','scoring','study','player-ui','pwa','help','review-exam','theme','main','storage','study-plan','review-model','media-session'];
+const SOURCE = ['sentences','word-timings','waveforms','locales','scoring','study','player-ui','pwa','help','review-exam','theme','main','storage','study-plan','review-model','media-session','adaptive-performance'];
 const SHELL = [APP, ...['manifest.webmanifest','icon-192.png','icon-512.png','apple-touch-icon.png'].map(url), ...SOURCE.map(n=>url(`app/v${VERSION}/src/${n}.js`)), ...['base','components','layout'].map(n=>url(`app/v${VERSION}/styles/${n}.css`))];
 const AUDIO = Array.from({length:191},(_,i)=>url(`audio/${String(i+1).padStart(3,'0')}.mp3`));
 const assets = new Set([...SHELL,...AUDIO]);
@@ -21,18 +21,34 @@ self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));
 // Keep prior audio available until the new cache is complete. The recordings
 // are immutable across these releases, so reuse their full responses.
 let preparation=null;
-async function prepareAudio(){
+function downloadPlan(hint){
+ const maximum=hint?.maximum===2?2:8;
+ const initial=[2,4,8].includes(hint?.initial)?hint.initial:4;
+ return { size:Math.min(initial,maximum),maximum };
+}
+function nextBatchSize(size,maximum,elapsed){
+ if(elapsed>1500)return Math.max(2,size/2);
+ if(elapsed<500)return Math.min(maximum,size*2);
+ return size;
+}
+async function prepareAudio(hint){
  try {
   const cache=await caches.open(CACHE);
   const present=new Set((await cache.keys()).map(request=>request.url));
   const missing=AUDIO.filter(path=>!present.has(path));
-  for(let i=0;i<missing.length;i+=2){
-   const results=await Promise.allSettled(missing.slice(i,i+2).map(async path=>{
+  const plan=downloadPlan(hint);
+  let size=plan.size;
+  for(let i=0;i<missing.length;){
+   const batch=missing.slice(i,i+size);
+   const started=Date.now();
+   const results=await Promise.allSettled(batch.map(async path=>{
     const previous=await caches.match(path);
     if(previous&&previous.status===200)await cache.put(path,previous);
     else await cache.add(new Request(path));
    }));
    if(results.some(result=>result.status==='rejected'))return false;
+   i+=batch.length;
+   size=nextBatchSize(size,plan.maximum,Date.now()-started);
   }
   if(!await offlineReady())return false;
   // Defer cleanup until successful preparation; quota or network failure
@@ -43,8 +59,8 @@ async function prepareAudio(){
   return true;
  } catch {return false;}
 }
-function prepareOnce(){
- if(!preparation)preparation=prepareAudio().finally(()=>{preparation=null;});
+function prepareOnce(hint){
+ if(!preparation)preparation=prepareAudio(hint).finally(()=>{preparation=null;});
  return preparation;
 }
 async function offlineReady() {
@@ -61,7 +77,7 @@ async function offlineReady() {
 self.addEventListener('message', event => {
   if(event.data?.type==='wfd:prepare-offline'&&event.data.version===VERSION){
     event.waitUntil((async()=>{
-      const ready=await prepareOnce();
+      const ready=await prepareOnce(event.data.download);
       if(event.source)event.source.postMessage({type:'wfd:offline-prepared',version:VERSION,ready});
     })());
     return;

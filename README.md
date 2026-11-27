@@ -51,7 +51,7 @@ wfd. combines repeated listening, active recall, dictation, and spaced review in
 - **iOS / iPadOS:** Safari → Share → Add to Home Screen
 - **Android / Desktop:** Install app or Add to Home Screen, where supported.
 
-Open the app online and wait for offline readiness before disconnecting. Online practice can begin while audio downloads in the background; if offline storage fails, reopen the app while connected.
+Open the app online and wait for offline readiness before disconnecting. Online practice can begin while audio downloads in the background; if offline storage fails, reopen the app while connected. Playback visuals retain the browser's native refresh cadence when rendering is healthy and reduce updates under sustained pressure. Background audio download concurrency adapts to available connection hints and measured batch times.
 
 ### Background listening
 

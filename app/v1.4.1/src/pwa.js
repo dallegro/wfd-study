@@ -1,3 +1,4 @@
+import { offlineDownloadHint } from './adaptive-performance.js';
 
 (()=>{
  const labels={
@@ -21,7 +22,7 @@
      const controller=navigator.serviceWorker.controller;
      if(!controller||document.hidden||!navigator.onLine)return;
      preparing=true;
-     try{controller.postMessage({type:'wfd:prepare-offline',version:releaseVersion});}
+     try{controller.postMessage({type:'wfd:prepare-offline',version:releaseVersion,download:offlineDownloadHint(navigator.connection,navigator.deviceMemory)});}
      catch{preparing=false;status='error';render();}
    },1000);
  }

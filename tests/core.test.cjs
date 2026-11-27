@@ -17,7 +17,7 @@ const sw=fs.readFileSync(path.join(root,'sw.js'),'utf8');
 function worker(){const events={};const bytes=Uint8Array.from([0,1,2,3,4,5]);const fakeCache={match:async()=>new Response(bytes,{headers:{'Content-Type':'audio/mpeg'}})};const c=vm.createContext({URL,Request,Response,Set,Array,Number,Math,caches:{has:async()=>true,open:async()=>fakeCache},fetch:async()=>{throw new Error('unexpected network')},self:{registration:{scope:'https://example.test/wfd-study/'},location:{origin:'https://example.test'},addEventListener:(name,fn)=>events[name]=fn}});vm.runInContext(sw,c);return c;}
 test('offline MP3 range response',async()=>{const c=worker();const r=await vm.runInContext(`serveAsset(new Request('https://example.test/wfd-study/audio/001.mp3',{headers:{Range:'bytes=1-3'}}), AUDIO[0])`,c);assert.equal(r.status,206);assert.equal(r.headers.get('Content-Range'),'bytes 1-3/6');assert.deepEqual([...new Uint8Array(await r.arrayBuffer())],[1,2,3]);});
 test('offline suffix and invalid ranges',async()=>{const c=worker();let r=await vm.runInContext(`serveAsset(new Request(AUDIO[0],{headers:{Range:'bytes=-2'}}), AUDIO[0])`,c);assert.deepEqual([...new Uint8Array(await r.arrayBuffer())],[4,5]);r=await vm.runInContext(`serveAsset(new Request(AUDIO[0],{headers:{Range:'bytes=6-'}}), AUDIO[0])`,c);assert.equal(r.status,416);});
-test('every service worker precache path exists',()=>{const c=worker();const paths=vm.runInContext('[...assets]',c);assert.equal(paths.length,215);for(const u of paths)assert.ok(fs.existsSync(path.join(root,new URL(u).pathname.replace('/wfd-study/',''))),u);});
+test('every service worker precache path exists',()=>{const c=worker();const paths=vm.runInContext('[...assets]',c);assert.equal(paths.length,216);for(const u of paths)assert.ok(fs.existsSync(path.join(root,new URL(u).pathname.replace('/wfd-study/',''))),u);});
 
 const {isValidGoal,getDayCount,getDayRange,getResumeIndex}=require(path.join(src,'study-plan.js'));
 const {readStored,writeStored}=require(path.join(src,'storage.js'));
@@ -124,7 +124,7 @@ test('offline cache install downloads only app shell',async()=>{
   const c=worker();
   await vm.runInContext("globalThis.downloaded=[]; caches.open=async()=>({addAll:async reqs=>downloaded.push(...reqs.map(r=>r.url))})",c);
   await vm.runInContext('precache()',c);
-  assert.equal(vm.runInContext('downloaded.length',c),24);
+  assert.equal(vm.runInContext('downloaded.length',c),25);
   assert.equal(vm.runInContext('downloaded.some(url=>AUDIO.includes(url))',c),false);
 });
 test('offline audio preparation reuses cached media and resumes partial download',async()=>{
@@ -168,4 +168,41 @@ test('media position and playback state avoid redundant writes',()=>{
   assert.equal(positions,2);
   controls.sync({...state,playing:false,position:1.5});
   assert.equal(states,2);assert.equal(positions,3);
+});
+
+const {createFrameGovernor,offlineDownloadHint}=require(path.join(src,'adaptive-performance.js'));
+test('healthy rendering keeps native frame cadence, even at 120 Hz',()=>{
+  for(const delta of [8.33,16.67,33.33]){
+    const governor=createFrameGovernor();
+    for(let i=0;i<120;i++)assert.equal(governor.shouldPaint(i*delta),true);
+    assert.equal(governor.limited,false);
+  }
+});
+test('sustained rendering pressure reduces paint frequency and recovers',()=>{
+  const governor=createFrameGovernor();
+  let now=0;
+  governor.shouldPaint(now);
+  let skipped=0;
+  for(let i=0;i<20;i++)if(!governor.shouldPaint(now+=40))skipped++;
+  assert.equal(governor.limited,true);
+  assert.ok(skipped>0);
+  governor.reset();
+  for(let i=0;i<65;i++)governor.shouldPaint(now+=16.67);
+  assert.equal(governor.limited,false);
+  assert.equal(governor.shouldPaint(now+16.67),true);
+});
+test('download hints respect data saver and missing Safari capabilities',()=>{
+  assert.deepEqual(offlineDownloadHint(undefined,undefined),{initial:4,maximum:8});
+  assert.deepEqual(offlineDownloadHint({effectiveType:'4g',downlink:10},8),{initial:8,maximum:8});
+  assert.deepEqual(offlineDownloadHint({saveData:true,effectiveType:'4g',downlink:10},8),{initial:2,maximum:2});
+  assert.deepEqual(offlineDownloadHint({effectiveType:'3g'},8),{initial:2,maximum:2});
+  assert.deepEqual(offlineDownloadHint(undefined,2),{initial:2,maximum:2});
+});
+test('worker adjusts bounded download batches without overriding restricted mode',()=>{
+  const c=worker();
+  assert.equal(vm.runInContext('downloadPlan({initial:999,maximum:2}).size',c),2);
+  assert.equal(vm.runInContext('nextBatchSize(4,8,100)',c),8);
+  assert.equal(vm.runInContext('nextBatchSize(8,8,2000)',c),4);
+  assert.equal(vm.runInContext('nextBatchSize(2,2,100)',c),2);
+  assert.equal(vm.runInContext('nextBatchSize(4,8,1000)',c),4);
 });
