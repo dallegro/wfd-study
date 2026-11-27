@@ -10,12 +10,16 @@ with sync_playwright() as p:
     context = browser.new_context(locale='en-AU', viewport={'width': 390, 'height': 844})
     context.route('https://static.cloudflareinsights.com/**', lambda route: route.abort())
     # Capture app registrations without depending on the headless OS media UI.
+    # Firefox 144 lacks Audio Session; test its actual native path. Chromium/WebKit
+    # additionally exercise the positive capability branch using an explicit session mock.
+    simulate_category = ENGINE != 'firefox'
     context.add_init_script("""window.mediaActions = {};
       const media = {setActionHandler(name, fn) {window.mediaActions[name] = fn;},
         setPositionState(value) {this.position = value;}};
       Object.defineProperty(navigator, 'mediaSession', {value: media, configurable: true});
       window.MediaMetadata = class {constructor(value) {Object.assign(this, value);}};
-      Object.defineProperty(navigator, 'audioSession', {value: {type:'auto'}, configurable: true});
+      window.realAudioSessionSupported=!!navigator.audioSession;
+      if (SIMULATE_CATEGORY) Object.defineProperty(navigator, 'audioSession', {value: {type:'auto'}, configurable: true});
       window.nativePlayCalls=[];
       window.bufferPlayCalls=[];
       window.decodeCount=0;
@@ -27,44 +31,58 @@ with sync_playwright() as p:
         return result;
       };
       const bufferStart=AudioBufferSourceNode.prototype.start;
-      AudioBufferSourceNode.prototype.start=function(...args){window.bufferPlayCalls.push({category:navigator.audioSession.type,offset:args[1],duration:args[2]});return bufferStart.apply(this,args);};
+      AudioBufferSourceNode.prototype.start=function(...args){const result=bufferStart.apply(this,args);window.bufferPlayCalls.push({category:navigator.audioSession?.type,offset:args[1],duration:args[2]});return result;};
       const nativePlay=HTMLMediaElement.prototype.play;
       HTMLMediaElement.prototype.play=function(...args){
-        if(this.id==='player')window.nativePlayCalls.push({category:navigator.audioSession.type,offset:this.currentTime});
+        if(this.id==='player')window.nativePlayCalls.push({category:navigator.audioSession?.type,offset:this.currentTime});
         return nativePlay.apply(this,args);
       };
-    """)
+    """.replace("SIMULATE_CATEGORY", "true" if simulate_category else "false"))
     page = context.new_page()
     errors = []
     page.on('pageerror', lambda error: errors.append(str(error)))
     page.goto(URL, wait_until='domcontentloaded')
     page.wait_for_function("Number.isFinite(document.querySelector('#player').duration)")
-    # Confirm a real decoded-buffer source starts before any full sentence playback.
     page.locator('#language').select_option('en')
-    page.wait_for_function('decodeCount > 0', timeout=15000)
-    page.locator('#english [data-word-index]').nth(3).click()
-    page.wait_for_function('bufferPlayCalls.length === 1', timeout=10000)
-    assert page.evaluate("bufferPlayCalls[0].category === 'playback' && bufferPlayCalls[0].duration > 0 && nativePlayCalls.length === 0")
+    complete = "document.querySelector('#status').textContent === 'Word playback complete'"
+    words = page.locator('#english [data-word-index]')
+    if simulate_category:
+        page.wait_for_function('decodeCount > 0', timeout=15000)
+        words.nth(3).click()
+        page.wait_for_function('bufferPlayCalls.length === 1', timeout=10000)
+        assert page.evaluate("bufferPlayCalls[0].category === 'playback' && bufferPlayCalls[0].duration > 0 && nativePlayCalls.length === 0")
+        page.wait_for_function(complete, timeout=10000)
+        words.nth(2).click()
+        words.nth(4).click()
+        page.wait_for_function(complete, timeout=10000)
+        assert page.evaluate('bufferPlayCalls.length >= 3')
+    else:
+        # No fake output capability: first word must actually advance the native media timeline.
+        assert not page.evaluate('realAudioSessionSupported'), 'Firefox now supports Audio Session; update this compatibility test'
+        words.nth(3).click()
+        page.wait_for_function(complete, timeout=10000)
+        assert page.evaluate("nativePlayCalls.length === 1 && bufferPlayCalls.length === 0 && document.querySelector('#player').currentTime > nativePlayCalls[0].offset")
+        words.nth(2).click()
+        words.nth(4).click()
+        page.wait_for_function(complete, timeout=10000)
+        assert page.evaluate('nativePlayCalls.length === 3 && bufferPlayCalls.length === 0')
+    assert page.locator('.clip-active').count() == 0
     assert page.evaluate("navigator.mediaSession.metadata == null")
-    page.wait_for_function("document.querySelector('#status').textContent === 'Word playback complete'", timeout=10000)
-    assert page.locator('.clip-active').count() == 0
-    page.locator('#english [data-word-index]').nth(2).click()
-    page.locator('#english [data-word-index]').nth(4).click()
-    page.wait_for_function("document.querySelector('#status').textContent === 'Word playback complete'", timeout=10000)
-    assert page.locator('.clip-active').count() == 0
-    assert page.evaluate('bufferPlayCalls.length >= 3')
-    # Foreground restoration re-creates output context, not a bootstrap native word.
+    # Foreground restoration uses the appropriate engine without full-sentence warmup.
     page.evaluate("window.dispatchEvent(new Event('pagehide')); window.dispatchEvent(new Event('pageshow'))")
-    previous_calls=page.evaluate('bufferPlayCalls.length')
-    page.locator('#english [data-word-index]').nth(3).click()
-    page.wait_for_function('count=>bufferPlayCalls.length > count', arg=previous_calls, timeout=10000)
-    page.wait_for_function("document.querySelector('#status').textContent === 'Word playback complete'", timeout=10000)
+    counter = 'bufferPlayCalls' if simulate_category else 'nativePlayCalls'
+    previous_calls = page.evaluate(f'{counter}.length')
+    words.nth(3).click()
+    page.wait_for_function(f'{counter}.length === {previous_calls + 1}', timeout=10000)
+    page.wait_for_function(complete, timeout=10000)
+    print(f'{ENGINE}: first word, rapid taps, foreground restoration via {counter} passed')
     # Unsupported category selects the original native player without forced warmup.
     page.evaluate("Object.defineProperty(navigator,'audioSession',{value:{get type(){return 'auto'},set type(v){}},configurable:true})")
     previous_calls=page.evaluate('nativePlayCalls.length')
     page.locator('#english [data-word-index]').nth(3).click()
     assert page.evaluate('nativePlayCalls.length') == previous_calls + 1
-    page.wait_for_function("document.querySelector('#status').textContent === 'Word playback complete'", timeout=10000)
+    page.wait_for_function(complete, timeout=10000)
+    assert page.evaluate('document.querySelector("#player").currentTime > nativePlayCalls[nativePlayCalls.length-1].offset')
     page.locator('#stop').click()
     page.wait_for_function("document.querySelector('#player').currentTime > 0.1")
     assert page.evaluate("navigator.mediaSession.metadata.title") == 'WFD #001'
