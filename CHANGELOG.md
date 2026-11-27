@@ -1,30 +1,65 @@
+
 # Changelog
 
-## 1.3.0 — Unreleased
+## [1.3.0] - 2026-11-27
 
-- Extract review scheduling and history updates into a testable model.
-- Validate locally stored progress and review records before rendering.
-- Verify offline readiness against the active worker's complete asset manifest.
-- Add regression coverage for corrupt records, review intervals, history limits and missing cached assets.
+### Changed
+- Extracted review scheduling and history into a dedicated module.
+- Improved validation of locally stored learning records.
+- Strengthened offline cache verification.
+- Simplified project documentation.
 
-## 1.2.0
+### Tests
+- Expanded core test coverage from 13 to 18 tests.
+- Added regression tests for review intervals, history limits, malformed records, and incomplete caches.
 
-- Adopt native ES modules and explicit study-state transitions.
-- Extract study planning and storage helpers.
-- Add editor configuration, architecture documentation and regression tests.
+## [1.2.0] - 2026-11-27
 
-## 1.1.1
+### Changed
+- Migrated to native ES modules.
+- Introduced explicit study-state transitions.
+- Separated study planning and storage logic.
 
-- Reserve space for startup and offline status messages.
-- Add a layout-shift regression test.
+### Added
+- EditorConfig and Prettier configuration.
+- Architecture documentation.
+- Additional regression tests.
 
-## 1.1.0
+## [1.1.1] - 2026-11-27
 
-- Separate application scripts, styles and audio.
-- Load recordings individually and use precomputed waveform data.
-- Introduce versioned offline caching with media byte-range responses.
-- Add core tests, browser smoke tests and GitHub Actions.
+### Fixed
+- Improved initial layout stability.
+- Reserved space for dynamic status messages.
 
-## 1.0.0
+### Tests
+- Added a layout-shift regression test.
 
-- Initial public release with memorization, dictation, review, exam practice and offline access.
+## [1.1.0] - 2026-11-27
+
+### Changed
+- Separated application scripts, styles, and audio assets.
+- Introduced on-demand audio loading.
+- Added precomputed waveform data.
+- Improved offline caching and media byte-range support.
+
+### Added
+- Automated core tests.
+- Playwright browser tests.
+- GitHub Actions workflow.
+
+## [1.0.0] - 2026-11-27
+
+### Added
+- Initial public release.
+- Memorization and dictation modes.
+- Audio playback and repetition controls.
+- Daily study plans and progress tracking.
+- Review and exam practice.
+- Multilingual interface.
+- Offline PWA support.
+
+[1.3.0]: https://github.com/dallegro/wfd-study/releases/tag/v1.3.0
+[1.2.0]: https://github.com/dallegro/wfd-study/releases/tag/v1.2.0
+[1.1.1]: https://github.com/dallegro/wfd-study/pull/2
+[1.1.0]: https://github.com/dallegro/wfd-study/releases/tag/v1.1.0
+[1.0.0]: https://github.com/dallegro/wfd-study/releases/tag/v1.0.0
