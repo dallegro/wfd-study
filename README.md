@@ -84,6 +84,7 @@ The original media-element playback method remains available when:
 
 - An Apple mobile environment is detected but the playback audio category cannot be configured (silent-switch compatibility exception). Device identification is a best-effort heuristic.
 - The decoded audio is not yet ready.
+- AudioContext output is still initializing. If startup exceeds the existing 350 ms bound, that word uses native playback without cancelling the pending output initialization. Later words reuse the context when ready.
 - Web Audio is unavailable or fails.
 - A non-default playback speed is selected.
 
@@ -204,7 +205,7 @@ npm test
 
 ### Testing
 
-The current release includes 40 automated core tests covering:
+The current release includes 41 automated core tests covering:
 
 - Dictation scoring and data integrity.
 - Study planning and local storage.

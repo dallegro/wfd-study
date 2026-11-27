@@ -30,7 +30,7 @@ with sync_playwright() as p:
       RealContext.prototype.resume=function(...args){trace('resume',this);const result=originalResume.apply(this,args);result.then(()=>trace('resumed',this),e=>trace('resumeRejected',this,String(e)));return result;};
       const originalClose=RealContext.prototype.close;
       RealContext.prototype.close=function(...args){trace('close',this);return originalClose.apply(this,args);};
-      window.AudioContext=new Proxy(RealContext,{construct(target,args,newTarget){try{const ctx=Reflect.construct(target,args,newTarget);trace('construct',ctx,navigator.userActivation?.isActive);ctx.addEventListener('statechange',()=>trace('statechange',ctx));return ctx;}catch(e){trace('constructError',null,String(e));throw e;}}});
+      window.AudioContext=new Proxy(RealContext,{construct(target,args,newTarget){try{const ctx=Reflect.construct(target,args,newTarget);window.latestContext=ctx;trace('construct',ctx,navigator.userActivation?.isActive);ctx.addEventListener('statechange',()=>trace('statechange',ctx));return ctx;}catch(e){trace('constructError',null,String(e));throw e;}}});
       const offlinePrototype=(window.OfflineAudioContext||window.webkitOfflineAudioContext).prototype;
       const decode=offlinePrototype.decodeAudioData;
       offlinePrototype.decodeAudioData=function(bytes,success,failure){
@@ -69,38 +69,62 @@ with sync_playwright() as p:
     page.locator('#language').select_option('en')
     complete = "document.querySelector('#status').textContent === 'Word playback complete'"
     words = page.locator('#english [data-word-index]')
-    # A prepared first word must use the fast path even without Audio Session.
+    def counts():
+        return page.evaluate('[bufferPlayCalls.length,nativePlayCalls.length]')
+
+    def cold_word():
+        before_buffer, before_native = counts()
+        trace_start = page.evaluate('contextTrace.length')
+        words.nth(3).click()
+        wait_complete()
+        after_buffer, after_native = counts()
+        snapshot = page.evaluate('mediaSnapshot()')
+        if (after_buffer, after_native) == (before_buffer+1, before_native):
+            assert snapshot['buffer'][-1]['duration'] > 0
+            if simulate_category:
+                assert snapshot['buffer'][-1]['category'] == 'playback'
+        else:
+            # Only allow cold-start fallback when the actual output was still resuming.
+            # This does not accept a permanent loss of the optimized path.
+            assert (after_buffer, after_native) == (before_buffer, before_native+1), snapshot
+            events = snapshot['contextTrace'][trace_start:]
+            assert any(e['event']=='resume' and e['state']=='suspended' for e in events), snapshot
+            assert not any(e['event'] in ('close','resumeRejected','constructError','sourceStartError') for e in events), snapshot
+            assert snapshot['time'] > snapshot['native'][-1]['offset'], snapshot
+            page.wait_for_function("latestContext?.state === 'running'", timeout=10000)
+            assert counts() == (after_buffer, after_native), page.evaluate('mediaSnapshot()')
+        # In both cases the very next prepared word MUST use that same running
+        # context, with no native fallback or new context creation.
+        constructed = page.evaluate("contextTrace.filter(e=>e.event==='construct').length")
+        before_buffer, before_native = counts()
+        words.nth(3).click()
+        wait_complete()
+        assert counts() == (before_buffer+1, before_native), page.evaluate('mediaSnapshot()')
+        assert page.evaluate("contextTrace.filter(e=>e.event==='construct').length") == constructed
+
     page.wait_for_function('decodeCount > 0', timeout=15000)
-    words.nth(3).click()
-    wait_complete()
-    assert page.evaluate("bufferPlayCalls.length === 1 && bufferPlayCalls[0].duration > 0 && nativePlayCalls.length === 0"), page.evaluate("mediaSnapshot()")
-    if simulate_category:
-        assert page.evaluate("bufferPlayCalls[0].category === 'playback'")
-    else:
+    cold_word()
+    if not simulate_category:
         assert not page.evaluate('realAudioSessionSupported')
+    previous_buffers, previous_native = counts()
     words.nth(2).click()
     words.nth(4).click()
     wait_complete()
-    assert page.evaluate('bufferPlayCalls.length >= 3 && nativePlayCalls.length === 0')
+    assert counts() == (previous_buffers+2, previous_native), page.evaluate('mediaSnapshot()')
     assert page.locator('.clip-active').count() == 0
     assert page.evaluate("navigator.mediaSession.metadata == null")
-    # Foreground restoration must not require native warm-up.
+    # Foreground restoration has the same cold-start contract and mandatory reuse.
     page.evaluate("window.dispatchEvent(new Event('pagehide')); window.dispatchEvent(new Event('pageshow'))")
-    previous_calls=page.evaluate('bufferPlayCalls.length')
-    words.nth(3).click()
-    wait_complete()
-    assert page.evaluate('bufferPlayCalls.length') == previous_calls + 1
-    assert page.evaluate('nativePlayCalls.length') == 0
+    cold_word()
     # Missing/ineffective Audio Session is not a reason to downgrade desktop Web Audio.
     page.evaluate("""() => {
       window.savedSession=Object.getOwnPropertyDescriptor(navigator,'audioSession');
       Object.defineProperty(navigator,'audioSession',{value:{get type(){return 'auto'},set type(v){}},configurable:true});
     }""")
-    previous_calls=page.evaluate('bufferPlayCalls.length')
+    previous_buffers, previous_native = counts()
     words.nth(3).click()
     wait_complete()
-    assert page.evaluate('bufferPlayCalls.length') == previous_calls + 1
-    assert page.evaluate('nativePlayCalls.length') == 0
+    assert counts() == (previous_buffers+1, previous_native), page.evaluate('mediaSnapshot()')
     # Explicitly emulate the narrow Apple-mobile compatibility exception.
     # This checks routing and native progress, not actual iPhone sound output.
     page.evaluate("""() => {

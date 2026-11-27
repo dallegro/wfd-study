@@ -5,12 +5,15 @@ export function createWordAudio({
   setTimer = setTimeout, clearTimer = clearTimeout,
 }) {
   let url = null, generation = 0, buffer = null, pending = null, timer = null;
-  let context = null, active = null;
+  let context = null, active = null, startup = null;
+  // A slow resume belongs to the context, not the individual word request.
+  // A clip may fall back while that one resume is still pending.
   // A context is owned by foreground word playback; no hidden warm-up audio.
   function resetOutput() {
     stop();
     const previous = context;
     context = null;
+    startup = null;
     if (previous && previous.state !== 'closed') {
       try { Promise.resolve(previous.close()).catch(()=>{}); } catch {}
     }
@@ -72,6 +75,9 @@ export function createWordAudio({
     try {
       if (!context || context.state === 'closed') context = new AudioContext();
       const ctx = context;
+      // Once startup exceeded the tap's latency budget, do not impose the same
+      // wait on every subsequent tap. Native playback is immediate until ready.
+      if (ctx.state !== 'running' && startup?.context === ctx && startup.timedOut) return false;
       const job = { context:ctx, source:null, start, end, started:null, phase:'starting', watchdog:null, stateListener:null };
       active = job;
       function fail() {
@@ -114,8 +120,32 @@ export function createWordAudio({
       else {
         // Call resume directly within the user's activation, not after a fetch/decode.
         // Preserve the v1.4.2 startup-latency bound.
-        job.watchdog = setTimer(fail, 350);
-        Promise.resolve(ctx.resume()).then(begin,fail);
+        if (!startup || startup.context !== ctx) {
+          const attempt = { context:ctx, timedOut:false, promise:null };
+          startup = attempt;
+          attempt.promise = Promise.resolve(ctx.resume()).then(
+            () => { if (startup === attempt) startup = null; },
+            error => {
+              // Rejection after a clip timed out is still a genuine context failure.
+              // Never close a context belonging to a later request.
+              if (startup === attempt) {
+                startup = null;
+                if (!active || active.context !== ctx) resetOutput();
+              }
+              throw error;
+            }
+          );
+        }
+        const attempt = startup;
+        job.watchdog = setTimer(() => {
+          if (active !== job) return;
+          if (startup === attempt) attempt.timedOut = true;
+          // Cancel only the clip, not the underlying audio output initialization.
+          // The stale completion handler below cannot restart this word.
+          stop();
+          onFallback();
+        }, 350);
+        attempt.promise.then(begin,fail);
       }
       return true;
     } catch { resetOutput(); return false; }

@@ -9,13 +9,14 @@ All notable changes to wfd. are documented in this file.
 - Configure the playback audio category before word playback, independently of system media controls.
 - Preserve decoded Web Audio at normal speed on desktop and Android even when Audio Session is unavailable; use native media for detected Apple mobile environments without a confirmed playback category.
 - Restore the v1.4.2 350 ms startup watchdog bound and retain decoded audio across foreground restoration.
+- Separate the per-word startup deadline from the output context lifecycle: a slow initialization may finish after native fallback, without restarting the expired word or repeatedly recreating the context.
 - Create or resume the output context within a user gesture, distinguish startup from active playback, and close it on backgrounding.
 - Recover from startup failure without restarting partially played words after interruption.
 - Guard stale callbacks, bound stalled playback, and preserve seek selections.
 
 ### Tests
-- Expanded core test coverage from 31 to 40 tests.
-- Assert decoded-buffer source starts on the first word without Audio Session, before full-sentence playback, and validate the Apple-mobile compatibility fallback.
+- Expanded core test coverage from 31 to 41 tests.
+- Assert first-word playback before full-sentence playback, mandatory decoded playback once the output context is running (including without Audio Session), context reuse after a cold-start timeout, and the Apple-mobile compatibility fallback.
 - Added context lifecycle, interruption, cancellation and resume tests.
 - Physical iOS audio output still requires retesting.
 

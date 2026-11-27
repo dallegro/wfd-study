@@ -348,12 +348,30 @@ test('Apple mobile silent-switch compatibility exception is limited to unconfigu
     assert.equal(allowsWordBuffer(environment,true),true);
   }
 });
-test('unresolved context startup uses the v1.4.2 latency bound and falls back once',async()=>{
-  const f=wordAudioFixture({state:'suspended',resume:()=>new Promise(()=>{})});
+test('slow context startup falls back once at 350ms without discarding output initialization',async()=>{
+  let resume, resumes=0;
+  const f=wordAudioFixture({state:'suspended',resume:ctx=>{resumes++;return new Promise(resolve=>{resume=()=>{ctx.state='running';resolve();};});}});
   const e=f.engine;e.select('one');await f.prepare();
   let fallback=0;
   assert.equal(e.play({...wordOptions,onStart:()=>assert.fail(),onEnd:()=>assert.fail(),onFallback:()=>fallback++}),true);
   const [key,timeout]=f.timers.entries().next().value;
   assert.equal(f.delays.get(key),350);
-  timeout();timeout();assert.equal(fallback,1);assert.equal(f.contexts[0].state,'closed');
+  timeout();timeout();assert.equal(fallback,1);assert.equal(f.contexts[0].state,'suspended');
+  assert.equal(e.play(wordOptions),false);assert.equal(resumes,1);assert.equal(f.timers.size,0);
+  resume();await Promise.resolve();await Promise.resolve();await Promise.resolve();
+  assert.equal(f.sources.length,0,'expired word must not restart');
+  assert.equal(e.play(wordOptions),true);assert.equal(f.sources.length,1);
+  assert.equal(f.contexts.length,1);assert.equal(resumes,1);
+});
+test('late resume rejection releases timed-out context; a later tap can retry',async()=>{
+  let rejectResume;
+  const f=wordAudioFixture({state:'suspended',resume:()=>new Promise((resolve,reject)=>{rejectResume=reject;})});
+  const e=f.engine;e.select('one');await f.prepare();
+  let fallback=0;const clip={...wordOptions,onFallback:()=>fallback++};
+  assert.equal(e.play(clip),true);
+  [...f.timers.values()][0]();
+  rejectResume(Error('output failed'));await Promise.resolve();await Promise.resolve();await Promise.resolve();
+  assert.equal(fallback,1);assert.equal(f.contexts[0].state,'closed');
+  assert.equal(e.play(clip),true);assert.equal(f.contexts.length,2);
+  e.resetOutput();
 });
