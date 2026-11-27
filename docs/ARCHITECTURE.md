@@ -4,7 +4,7 @@
 
 - Static hosting without a required production build or server.
 - Preserve existing study records and audio files.
-- Cache the offline shell and its modules as one release.
+- Cache the offline shell and its modules as one release. The page asks the controlling service worker to verify its version and the complete cached asset list.
 
 ## Module boundaries
 
@@ -16,7 +16,8 @@
 | scoring | Pure ordered word alignment |
 | study-plan | Day ranges, goal validation and resume index |
 | storage | JSON persistence with graceful failure |
-| review-exam | Review history, scheduled practice and timed exams |
+| review-exam | Review and exam UI |
+| review-model | History validation, scheduling, weak-word tracking and due selection |
 | locales | Locale selection and translation |
 | sentences / word-timings / waveforms | Content and audio metadata |
 | pwa | Offline readiness and install UI |
@@ -32,4 +33,18 @@ Optional pinned Prettier commands and editor settings are provided. This migrati
 
 ## Release
 
-Keep HTML, module paths, service-worker precache list, readiness key and cache-count assertions in sync. Do not clear site data to update. Check installed PWA upgrades and Safari/iOS manually; monitor field LCP and CLS.
+Keep HTML, module paths, the service-worker precache list and cache assertions in sync. Do not clear site data to update. Check installed PWA upgrades and Safari/iOS manually; monitor field LCP and CLS.
+
+## Data compatibility
+
+Learning records retain their existing localStorage keys. Valid records retain their scheduling and history; malformed entries are normalized before use. The app has no account service, so records are device-local. Storage denial does not prevent practice, but history may not persist.
+
+## Browser checks
+
+Start `python3 -m http.server 8000` in the project directory, then run:
+
+```sh
+pip install playwright==1.57.0
+python -m playwright install chromium
+python tests/browser_smoke.py
+```

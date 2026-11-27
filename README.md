@@ -52,7 +52,7 @@ HTML, CSS and vanilla JavaScript · HTML audio playback with precomputed wavefor
 ```text
 wfd-study/
 ├── index.html              # Interface and module entry point
-├── app/v1.2.0/
+├── app/v1.3.0/
 │   ├── styles/             # Base, components and layout (ordered cascade)
 │   └── src/                # Study, player, scoring, review, exam, theme, help
 │       ├── sentences.js    # Sentences and translations (no audio payload)
@@ -79,25 +79,16 @@ python3 -m http.server 8000
 
 Open `http://localhost:8000`. No build step is required. Production deployment uses HTTPS.
 
-## Architecture & quality
+## Development
 
-The app remains framework-free and requires no production build step. The browser loads native ES modules through `main.js`. Imports define dependencies; the study module owns mutable study state and exposes explicit review transitions. Pure scoring, study-plan and storage helpers are tested without a browser. Audio files are fetched individually and waveform peaks are calculated in advance, eliminating runtime waveform decoding. The service worker installs a complete release together and supports cached MP3 byte ranges for media playback.
+Requires Node.js 22 for tests. No production build or framework is needed.
 
-Run the core tests using Node.js 22:
-
-```bash
+```sh
 npm test
+python3 -m http.server 8000
 ```
 
-Run the browser smoke test with a local HTTP server running:
-
-```bash
-pip install playwright==1.57.0
-python -m playwright install chromium
-python tests/browser_smoke.py
-```
-
-GitHub Actions is configured to run syntax, core and browser checks. Review CI results before publishing a stable release. When changing versioned assets, update the release directory and references in HTML, the service worker, readiness check and tests together. See [architecture notes](docs/ARCHITECTURE.md). Reload after a new service worker takes control to see the updated interface. Existing learning records use the same localStorage keys; do not clear site data to update the app.
+See [architecture and development notes](docs/ARCHITECTURE.md) for browser tests, release checks and module responsibilities.
 
 ## Privacy & limitations
 

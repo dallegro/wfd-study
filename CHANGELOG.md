@@ -1,28 +1,30 @@
 # Changelog
 
-## 1.2.0 — candidate
+## 1.3.0 — Unreleased
 
-- Use native ES modules with explicit imports and review transitions.
-- Extract study-plan and JSON storage helpers; preserve scoring and storage keys.
-- Improve source formatting and remove unused sidebar declarations.
-- Extend planning, storage and review navigation regression checks.
+- Extract review scheduling and history updates into a testable model.
+- Validate locally stored progress and review records before rendering.
+- Verify offline readiness against the active worker's complete asset manifest.
+- Add regression coverage for corrupt records, review intervals, history limits and missing cached assets.
+
+## 1.2.0
+
+- Adopt native ES modules and explicit study-state transitions.
+- Extract study planning and storage helpers.
+- Add editor configuration, architecture documentation and regression tests.
 
 ## 1.1.1
 
-- Stabilize startup layout and offline status; add a startup layout-shift regression test.
+- Reserve space for startup and offline status messages.
+- Add a layout-shift regression test.
 
-## 1.1.0 — refactor candidate
+## 1.1.0
 
-- Separate HTML, ordered CSS, study logic, scoring, locale data, word timings, player visuals, review/exam, help, appearance and PWA logic.
-- Extract 191 original MP3s without transcoding; load recordings individually and precompute waveform peaks.
-- Use a versioned offline cache with full-library background precaching and HTTP byte-range support.
-- Preserve existing localStorage keys and sentence order.
-- Add Node core tests, Playwright smoke tests and GitHub Actions checks.
-- Keep the existing interface and study behavior; comprehensive CSS consolidation and full ES-module conversion are intentionally deferred.
+- Separate application scripts, styles and audio.
+- Load recordings individually and use precomputed waveform data.
+- Introduce versioned offline caching with media byte-range responses.
+- Add core tests, browser smoke tests and GitHub Actions.
 
-Validation: JavaScript syntax and 10 Node tests passed; all 191 MP3 files were compared byte-for-byte against the previous embedded audio. Actual browser testing was blocked by the local execution environment and must be completed before marking this release stable.
+## 1.0.0
 
-## 1.0.0 — previous public version
-
-- WFD practice, memorization, dictation, review, exam, 10 languages and appearance controls.
-- Installable PWA with embedded audio and locally stored learning progress.
+- Initial public release with memorization, dictation, review, exam practice and offline access.
