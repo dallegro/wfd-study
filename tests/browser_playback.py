@@ -70,7 +70,7 @@ with sync_playwright() as p:
     complete = "document.querySelector('#status').textContent === 'Word playback complete'"
     words = page.locator('#english [data-word-index]')
     def counts():
-        return page.evaluate('[bufferPlayCalls.length,nativePlayCalls.length]')
+        return tuple(page.evaluate('[bufferPlayCalls.length,nativePlayCalls.length]'))
 
     def cold_word():
         before_buffer, before_native = counts()
