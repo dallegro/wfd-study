@@ -1,6 +1,6 @@
 """Typing integration test; run with the repo's local HTTP server."""
 import os
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, expect
 URL=os.environ.get('WFD_TEST_URL','http://localhost:8000/')
 with sync_playwright() as p:
     browser=p.chromium.launch()
@@ -89,8 +89,11 @@ with sync_playwright() as p:
     assert '20 sentences/day' in page.locator('#goalSummary').inner_text()
     assert page.locator('#number').get_attribute('data-index')=='1'
     assert page.locator('#mark').get_attribute('aria-pressed')=='true'
+    expect(page.locator('#sentenceList')).to_be_visible()
     page.locator('#playbackFold summary').click()
-    assert page.locator('#sentenceList').is_hidden()
+    expect(page.locator('#playbackFold')).to_have_js_property('open', True)
+    expect(page.locator('#sentenceList')).to_be_hidden()
+    expect(page.locator('#sentenceListToggle')).to_have_attribute('aria-expanded', 'false')
     for width,height in [(320,720),(390,844),(768,1024),(1280,900)]:
         page.set_viewport_size({'width':width,'height':height})
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
