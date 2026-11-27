@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const root = path.resolve(__dirname,'..');
-const src = path.join(root,'app/v1.4.0/src');
+const src = path.join(root,'app/v1.4.1/src');
 const {alignDictation} = require(path.join(src,'scoring.js'));
 test('exact sentence, case and punctuation',()=>{ const g=alignDictation('A useful structure.','a useful structure'); assert.equal(g.correct,3);assert.equal(g.perfect,true); });
 test('omission',()=>{ const g=alignDictation('a good structure','a structure');assert.equal(g.correct,2);assert.equal(g.missing,1);assert.equal(g.perfect,false); });
@@ -17,7 +17,7 @@ const sw=fs.readFileSync(path.join(root,'sw.js'),'utf8');
 function worker(){const events={};const bytes=Uint8Array.from([0,1,2,3,4,5]);const fakeCache={match:async()=>new Response(bytes,{headers:{'Content-Type':'audio/mpeg'}})};const c=vm.createContext({URL,Request,Response,Set,Array,Number,Math,caches:{has:async()=>true,open:async()=>fakeCache},fetch:async()=>{throw new Error('unexpected network')},self:{registration:{scope:'https://example.test/wfd-study/'},location:{origin:'https://example.test'},addEventListener:(name,fn)=>events[name]=fn}});vm.runInContext(sw,c);return c;}
 test('offline MP3 range response',async()=>{const c=worker();const r=await vm.runInContext(`serveAsset(new Request('https://example.test/wfd-study/audio/001.mp3',{headers:{Range:'bytes=1-3'}}), AUDIO[0])`,c);assert.equal(r.status,206);assert.equal(r.headers.get('Content-Range'),'bytes 1-3/6');assert.deepEqual([...new Uint8Array(await r.arrayBuffer())],[1,2,3]);});
 test('offline suffix and invalid ranges',async()=>{const c=worker();let r=await vm.runInContext(`serveAsset(new Request(AUDIO[0],{headers:{Range:'bytes=-2'}}), AUDIO[0])`,c);assert.deepEqual([...new Uint8Array(await r.arrayBuffer())],[4,5]);r=await vm.runInContext(`serveAsset(new Request(AUDIO[0],{headers:{Range:'bytes=6-'}}), AUDIO[0])`,c);assert.equal(r.status,416);});
-test('every service worker precache path exists',()=>{const c=worker();const paths=vm.runInContext('[...assets]',c);assert.equal(paths.length,215);for(const u of paths)assert.ok(fs.existsSync(path.join(root,new URL(u).pathname.replace('/wfd-study/',''))),u);});
+test('every service worker precache path exists',()=>{const c=worker();const paths=vm.runInContext('[...assets]',c);assert.equal(paths.length,216);for(const u of paths)assert.ok(fs.existsSync(path.join(root,new URL(u).pathname.replace('/wfd-study/',''))),u);});
 
 const {isValidGoal,getDayCount,getDayRange,getResumeIndex}=require(path.join(src,'study-plan.js'));
 const {readStored,writeStored}=require(path.join(src,'storage.js'));
@@ -118,4 +118,91 @@ test('media integration is optional and unsupported actions cannot crash playbac
   assert.doesNotThrow(()=>{controls.activate();controls.sync({index:0});controls.release()});
   const unsupported=createMediaControls({session:{setActionHandler(){throw Error('unsupported')},setPositionState(){throw Error('unsupported')}},audioSession:{set type(value){throw Error('unsupported')}}},callbacks);
   assert.doesNotThrow(()=>{unsupported.activate();unsupported.sync({index:0,playing:true});unsupported.release()});
+});
+
+test('offline cache install downloads only app shell',async()=>{
+  const c=worker();
+  await vm.runInContext("globalThis.downloaded=[]; caches.open=async()=>({addAll:async reqs=>downloaded.push(...reqs.map(r=>r.url))})",c);
+  await vm.runInContext('precache()',c);
+  assert.equal(vm.runInContext('downloaded.length',c),25);
+  assert.equal(vm.runInContext('downloaded.some(url=>AUDIO.includes(url))',c),false);
+});
+test('offline audio preparation reuses cached media and resumes partial download',async()=>{
+  const c=worker();
+  await vm.runInContext(`
+    globalThis.present=new Set([...SHELL,AUDIO[0]]);
+    globalThis.reused=[],globalThis.downloaded=[],globalThis.fail=true;
+    caches.open=async()=>({
+      keys:async()=>[...present].map(url=>({url})),
+      put:async(url)=>{reused.push(url);present.add(url)},
+      add:async(req)=>{if(fail&&req.url===AUDIO[2])throw Error('quota');downloaded.push(req.url);present.add(req.url)}
+    });
+    caches.match=async url=>url===AUDIO[1]?new Response('audio'):undefined;
+    caches.keys=async()=>[CACHE];
+  `,c);
+  assert.equal(await vm.runInContext('prepareAudio()',c),false);
+  assert.equal(await vm.runInContext('offlineReady()',c),false);
+  await vm.runInContext('fail=false',c);
+  assert.equal(await vm.runInContext('prepareAudio()',c),true);
+  assert.equal(await vm.runInContext('offlineReady()',c),true);
+  assert.equal(vm.runInContext('reused.length',c),1);
+  assert.equal(vm.runInContext('downloaded.length',c),189);
+});
+test('cache storage failure falls back to network media',async()=>{
+  const c=worker();
+  await vm.runInContext("caches.open=async()=>{throw Error('storage unavailable')};fetch=async()=>new Response('online')",c);
+  const response=await vm.runInContext('serveAsset(new Request(AUDIO[0]),AUDIO[0])',c);
+  assert.equal(await response.text(),'online');
+});
+test('media position and playback state avoid redundant writes',()=>{
+  let positions=0,states=0;
+  const session={setActionHandler(){},setPositionState(){positions++},set playbackState(v){states++}};
+  const cb=()=>{};
+  const controls=createMediaControls({session},{play:cb,pause:cb,stop:cb,previous:cb,next:cb,seek:cb});
+  controls.activate();
+  const state={index:0,playing:true,canSeek:true,duration:4,position:1,rate:1};
+  controls.sync(state);
+  controls.sync({...state,position:1.1});
+  assert.equal(positions,1);assert.equal(states,1);
+  controls.sync({...state,position:1.5});
+  assert.equal(positions,2);
+  controls.sync({...state,playing:false,position:1.5});
+  assert.equal(states,2);assert.equal(positions,3);
+});
+
+const {createFrameGovernor,offlineDownloadHint}=require(path.join(src,'adaptive-performance.js'));
+test('healthy rendering keeps native frame cadence, even at 120 Hz',()=>{
+  for(const delta of [8.33,16.67,33.33]){
+    const governor=createFrameGovernor();
+    for(let i=0;i<120;i++)assert.equal(governor.shouldPaint(i*delta),true);
+    assert.equal(governor.limited,false);
+  }
+});
+test('sustained rendering pressure reduces paint frequency and recovers',()=>{
+  const governor=createFrameGovernor();
+  let now=0;
+  governor.shouldPaint(now);
+  let skipped=0;
+  for(let i=0;i<20;i++)if(!governor.shouldPaint(now+=40))skipped++;
+  assert.equal(governor.limited,true);
+  assert.ok(skipped>0);
+  governor.reset();
+  for(let i=0;i<65;i++)governor.shouldPaint(now+=16.67);
+  assert.equal(governor.limited,false);
+  assert.equal(governor.shouldPaint(now+16.67),true);
+});
+test('download hints respect data saver and missing Safari capabilities',()=>{
+  assert.deepEqual(offlineDownloadHint(undefined,undefined),{initial:4,maximum:8});
+  assert.deepEqual(offlineDownloadHint({effectiveType:'4g',downlink:10},8),{initial:8,maximum:8});
+  assert.deepEqual(offlineDownloadHint({saveData:true,effectiveType:'4g',downlink:10},8),{initial:2,maximum:2});
+  assert.deepEqual(offlineDownloadHint({effectiveType:'3g'},8),{initial:2,maximum:2});
+  assert.deepEqual(offlineDownloadHint(undefined,2),{initial:2,maximum:2});
+});
+test('worker adjusts bounded download batches without overriding restricted mode',()=>{
+  const c=worker();
+  assert.equal(vm.runInContext('downloadPlan({initial:999,maximum:2}).size',c),2);
+  assert.equal(vm.runInContext('nextBatchSize(4,8,100)',c),8);
+  assert.equal(vm.runInContext('nextBatchSize(8,8,2000)',c),4);
+  assert.equal(vm.runInContext('nextBatchSize(2,2,100)',c),2);
+  assert.equal(vm.runInContext('nextBatchSize(4,8,1000)',c),4);
 });

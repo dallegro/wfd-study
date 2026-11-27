@@ -21,6 +21,10 @@ with sync_playwright() as p:
     page.goto(URL, wait_until='domcontentloaded')
     page.wait_for_function("document.getElementById('number').textContent === '#001'")
     page.wait_for_function("Number.isFinite(document.getElementById('player').duration)")
+    assert page.locator('#grid button').count() == 0
+    page.locator('#sentenceListToggle').click()
+    assert page.locator('#grid button').count() == 10
+    page.locator('#sentenceListToggle').click()
     assert page.evaluate("!document.documentElement.hasAttribute('data-wfd-booting')")
     page.wait_for_function("document.getElementById('pwaState').dataset.ready === 'true'", timeout=60000)
     page.wait_for_timeout(250)
@@ -59,7 +63,7 @@ with sync_playwright() as p:
     page.set_viewport_size({'width':1280,'height':900})
     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
     page.wait_for_function("document.getElementById('pwaState').dataset.ready === 'true'", timeout=60000)
-    assert page.evaluate("async()=> (await (await caches.open('wfd-pwa-refactor-1.4.0')).keys()).length") == 215
+    assert page.evaluate("async()=> (await (await caches.open('wfd-pwa-refactor-1.4.1')).keys()).length") == 216
     context.set_offline(True)
     page.reload(wait_until='domcontentloaded')
     page.wait_for_function("Number.isFinite(document.getElementById('player').duration)")

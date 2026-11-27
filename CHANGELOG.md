@@ -1,6 +1,19 @@
 
 # Changelog
 
+## 1.4.1 — Unreleased
+
+### Changed
+- Preserved native playback animation cadence on healthy renderers, reduced visual updates under sustained pressure, and suspended them when hidden.
+- Deferred sentence-list rendering and reused existing list buttons.
+- Activated the offline app shell before filling the audio cache, using adaptive batches of two to eight downloads and existing recordings where available.
+- Resumed incomplete audio preparation and fell back to the network if cache access fails.
+- Reduced redundant system media updates and removed an unnecessary newer array API dependency.
+
+### Tests
+- Added cache failure, partial download, media update, adaptive performance and simulated slow-device regression checks.
+- Physical-device performance and older OS compatibility remain to be verified.
+
 ## [1.4.0] - 2026-11-27
 
 ### Added
