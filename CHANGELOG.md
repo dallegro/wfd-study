@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.2.0 — candidate
+
+- Use native ES modules with explicit imports and review transitions.
+- Extract study-plan and JSON storage helpers; preserve scoring and storage keys.
+- Improve source formatting and remove unused sidebar declarations.
+- Extend planning, storage and review navigation regression checks.
+
+## 1.1.1
+
+- Stabilize startup layout and offline status; add a startup layout-shift regression test.
+
 ## 1.1.0 — refactor candidate
 
 - Separate HTML, ordered CSS, study logic, scoring, locale data, word timings, player visuals, review/exam, help, appearance and PWA logic.

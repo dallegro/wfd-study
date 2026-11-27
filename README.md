@@ -51,8 +51,8 @@ HTML, CSS and vanilla JavaScript · HTML audio playback with precomputed wavefor
 
 ```text
 wfd-study/
-├── index.html              # Interface and ordered script entry points
-├── app/v1.1.0/
+├── index.html              # Interface and module entry point
+├── app/v1.2.0/
 │   ├── styles/             # Base, components and layout (ordered cascade)
 │   └── src/                # Study, player, scoring, review, exam, theme, help
 │       ├── sentences.js    # Sentences and translations (no audio payload)
@@ -81,12 +81,12 @@ Open `http://localhost:8000`. No build step is required. Production deployment u
 
 ## Architecture & quality
 
-The app remains framework-free and requires no production build step. The main UI loads versioned CSS and ordered deferred JavaScript files. The original application state is shared by these scripts for compatibility; this is an incremental refactor, not a full ES-module rewrite. Audio files are fetched individually and waveform peaks are calculated in advance, eliminating runtime waveform decoding. The service worker installs a complete release together and supports cached MP3 byte ranges for media playback.
+The app remains framework-free and requires no production build step. The browser loads native ES modules through `main.js`. Imports define dependencies; the study module owns mutable study state and exposes explicit review transitions. Pure scoring, study-plan and storage helpers are tested without a browser. Audio files are fetched individually and waveform peaks are calculated in advance, eliminating runtime waveform decoding. The service worker installs a complete release together and supports cached MP3 byte ranges for media playback.
 
 Run the core tests using Node.js 22:
 
 ```bash
-node --test tests/core.test.cjs
+npm test
 ```
 
 Run the browser smoke test with a local HTTP server running:
@@ -97,7 +97,7 @@ python -m playwright install chromium
 python tests/browser_smoke.py
 ```
 
-GitHub Actions is configured to run syntax, core and browser checks. Review the first browser CI result before publishing a stable release. When changing versioned assets, update the release directory and references in HTML, the service worker and the readiness check together. Reload after a new service worker takes control to see the updated interface. Existing learning records use the same localStorage keys; do not clear site data to update the app.
+GitHub Actions is configured to run syntax, core and browser checks. Review CI results before publishing a stable release. When changing versioned assets, update the release directory and references in HTML, the service worker, readiness check and tests together. See [architecture notes](docs/ARCHITECTURE.md). Reload after a new service worker takes control to see the updated interface. Existing learning records use the same localStorage keys; do not clear site data to update the app.
 
 ## Privacy & limitations
 

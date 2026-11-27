@@ -1,0 +1,14 @@
+{
+  "name": "wfd-study",
+  "version": "1.2.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test tests/core.test.cjs",
+    "format": "npx --yes prettier@3.6.2 --write app/v1.2.0/src app/v1.2.0/styles sw.js tests/core.test.cjs",
+    "format:check": "npx --yes prettier@3.6.2 --check app/v1.2.0/src app/v1.2.0/styles sw.js tests/core.test.cjs"
+  }
+}
