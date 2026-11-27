@@ -2,6 +2,40 @@
 
 All notable changes to wfd. are documented in this file.
 
+## [1.5.0] - Unreleased preview
+
+### Added
+- Task-focused review tabs, deduplicated practice actions, bounded expandable lists and one-open detail panels.
+- Compact per-error feedback, review progress, session-specific simulation summary and direct mistake-practice action.
+- First review is scheduled 24 hours after manually marking a previously ungraded sentence memorised. Existing marks without a grade are scheduled from upgrade time.
+- Position-aware latest-error tracking; historical word-error totals remain intact.
+- JSON record export and replace-on-import, with dataset fingerprint, schema checks and best-effort rollback if storage writes fail.
+- Review, dictation and simulation share grade presentation; simulation results offer a mistake review queue.
+- Review skip/finish controls and audio interruption handling in simulation.
+- Optional typing practice in Memorise with visible original sentence, character-level feedback and automatic repetition.
+- Independent per-sentence typing counts and repetition target (3, 5, 10 or unlimited).
+- Separate typing playback preferences, current-sentence repetition and manual navigation.
+- Typing instructions in all existing interface languages.
+
+### Changed
+- Review and Mistakes are the only review-list practice entry points; History and Weak words are read-only. Cumulative word errors are shown directly. Unified review actions and removed double separators.
+- Distinguish single-sentence practice from multi-sentence review progress.
+- Keep prior scores and internal token positions out of active review.
+- Align review actions and move storage information into record management.
+- Remove duplicate exam landing title; return to the practice landing page on exit.
+- Refine the real audio waveform to 96 peak bins with slim responsive bars; restore the original-sentence label and integrate the dictation word count inside the answer field.
+- Normalize study card insets, section rhythm, sentence-number typography and navigation button widths without changing learning behavior.
+- Clarify daily study goals, estimated duration at the daily goal and session count; remove repeated current-plan summary from the edit dialog.
+- Use compact #001-style sentence identifiers without a misleading total-count suffix, and concise plan actions across interface languages.
+- Compact session selection and explicit scoped completion counts, with plan editing separated.
+- Matching Translation and Typing switches, concise labels and practice settings.
+- Study-session terminology instead of calendar-day labels.
+
+### Compatibility
+- Reuses the existing audio engine, recordings and theme; typing is not a dictation attempt or memorization completion.
+- Original audio remains unchanged. Existing attempts and cumulative errors are preserved; latest positions are reconstructed only where a reliable saved answer exists. Older records do not contain complete positional history.
+- Physical-device keyboard and audio testing remain required.
+
 ## [1.4.3] - 2026-11-27
 
 ### Fixed

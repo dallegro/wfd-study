@@ -1,10 +1,10 @@
-/* wfd. — versioned offline cache. Original recordings remain byte-identical. */
-const VERSION = '1.4.3';
-const CACHE = `wfd-pwa-refactor-${VERSION}`;
+/* wfd. — versioned offline cache. Original recordings remain byte-identical. Plan duration UI revision. */
+const VERSION = '1.5.0';
+const CACHE = `wfd-pwa-refactor-${VERSION}-ux9`;
 const ROOT = new URL('./', self.registration.scope).href;
 const url = path => new URL(path, ROOT).href;
 const APP = url('index.html');
-const SOURCE = ['sentences','word-timings','waveforms','locales','scoring','study','player-ui','pwa','help','review-exam','theme','main','storage','study-plan','review-model','media-session','adaptive-performance','word-audio'];
+const SOURCE = ['sentences','word-timings','waveforms','locales','scoring','study','player-ui','pwa','help','review-exam','theme','main','storage','study-plan','review-model','media-session','adaptive-performance','word-audio','typing-model','typing'];
 const SHELL = [APP, ...['manifest.webmanifest','icon-192.png','icon-512.png','apple-touch-icon.png'].map(url), ...SOURCE.map(n=>url(`app/v${VERSION}/src/${n}.js`)), ...['base','components','layout'].map(n=>url(`app/v${VERSION}/styles/${n}.css`))];
 const AUDIO = Array.from({length:191},(_,i)=>url(`audio/${String(i+1).padStart(3,'0')}.mp3`));
 const assets = new Set([...SHELL,...AUDIO]);

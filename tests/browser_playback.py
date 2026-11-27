@@ -163,7 +163,7 @@ with sync_playwright() as p:
     page.evaluate("mediaActions.play()")
     page.wait_for_function("!document.querySelector('#player').paused")
     page.evaluate("mediaActions.nexttrack()")
-    page.wait_for_function("document.querySelector('#number').textContent === '#002'")
+    page.wait_for_function("document.querySelector('#number').dataset.index === '2'")
     page.wait_for_function("!document.querySelector('#player').paused")
     page.locator('#dictationMode').click()
     assert page.evaluate("mediaActions.nexttrack === null && mediaActions.seekto === null")

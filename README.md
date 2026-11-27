@@ -32,8 +32,10 @@ Designed for everyday learning across mobile, tablet, and desktop devices, with 
 | Background listening | System media controls and lock-screen playback on supported browsers |
 | Memorization | Transcripts, translations, and synchronized word highlighting |
 | Word playback | Tap individual words to listen to the corresponding original audio |
+| Typing | Copy the visible sentence with live character feedback and automatic repetition |
 | Dictation | Word-level feedback for spelling, omissions, and incorrect words |
-| Review | Spaced repetition, mistakes, learning history, and weak words |
+| Review | Spaced repetition, mistakes, learning history, and read-only cumulative word-error analysis (sentence/position-aware records retained internally) |
+| Record management | Export and restore JSON learning records across browsers using the same dataset |
 | Exam practice | Four random sentences with timed responses |
 | Appearance | System, light, and dark themes |
 | Accessibility | Keyboard shortcuts, labeled controls, and responsive layouts |
@@ -44,7 +46,7 @@ Designed for everyday learning across mobile, tablet, and desktop devices, with 
 ## Getting started
 
 1. [Open wfd.](https://dallegro.github.io/wfd-study/)
-2. Set your daily target and select a study day.
+2. Set your daily target and select a study session.
 3. Listen and study in **Memorize** mode.
 4. Practice recall in **Dictation** mode.
 5. Revisit mistakes in **Review** or test yourself in **Exam**.
@@ -96,6 +98,10 @@ If audio initialization exceeds the 350 ms startup threshold, the current word u
 This approach avoids unnecessary context recreation and preserves the existing pitch-corrected playback behavior at other speeds.
 
 Apple mobile device detection is a best-effort compatibility measure. Actual playback behavior varies by device, browser, and operating system.
+
+### Typing practice (v1.5.0 preview)
+
+In Memorise, turn on Typing. Start the existing player to repeat the current sentence; copy the visible English text exactly, including case and punctuation. Correct entries clear automatically and increment an independent per-sentence counter. Set a goal of 3, 5, 10 or unlimited repetitions under Practice settings. Navigation remains manual. Typing playback preferences are separate from normal study playback; typing counts do not mark memorisation or dictation complete. Mark a sentence memorised yourself in either memorisation practice style.
 
 ## Performance
 
@@ -160,9 +166,11 @@ No framework, backend, or production build step is required.
 ```text
 wfd-study/
 ├── app/
-│   └── v1.4.3/
+│   └── v1.5.0/
 │       ├── src/
 │       │   ├── main.js
+│       │   ├── typing.js
+│       │   ├── typing-model.js
 │       │   ├── study.js
 │       │   ├── study-plan.js
 │       │   ├── player-ui.js
@@ -215,7 +223,7 @@ npm test
 
 ### Testing
 
-The current release includes 41 automated core tests covering:
+The current release includes 43 automated core tests covering:
 
 - Dictation scoring and data integrity.
 - Study planning and local storage.
@@ -304,7 +312,9 @@ PTE WFD 191문장을 반복 듣기, 암기, 받아쓰기, 복습 및 실전 연�
 
 최초 오프라인 준비가 완료되면 인터넷 연결 없이 학습할 수 있습니다.
 
-학습 기록은 현재 브라우저에 저장됩니다. 브라우저 데이터를 삭제하면 학습 기록이 사라질 수 있습니다.
+학습 기록은 현재 브라우저에 저장됩니다. 복습 → 기록 관리에서 JSON으로 내보내거나 불러올 수 있습니다. 불러오면 현재 암기·채점·타이핑 기록을 교체합니다. 자동 동기화는 제공하지 않습니다.
+
+암기 완료를 처음 표시하면 24시간 뒤 첫 복습이 예정됩니다. 기존 암기 표시 중 채점 이력이 없는 문장은 업데이트 시점부터 24시간 뒤로 예정됩니다. 취약 단어는 과거 누적 오류 횟수를 높은 순으로 표시하는 분석 전용 목록입니다. 학습 이력은 답안과 채점 결과를 확인하는 읽기 전용 목록입니다. 복습 예정과 오답 탭에서 문장을 복습합니다. 단어별 최근 오류와 위치 정보는 내부에 보존됩니다. 과거 기록에서 위치를 확인할 수 없는 경우 추정하지 않습니다.
 
 ## Credits
 

@@ -19,7 +19,7 @@ with sync_playwright() as p:
     errors = []
     page.on('pageerror', lambda error: errors.append(str(error)))
     page.goto(URL, wait_until='domcontentloaded')
-    page.wait_for_function("document.getElementById('number').textContent === '#001'")
+    page.wait_for_function("document.getElementById('number').dataset.index === '1'")
     page.wait_for_function("Number.isFinite(document.getElementById('player').duration)")
     assert page.locator('#grid button').count() == 0
     page.locator('#sentenceListToggle').click()
@@ -42,18 +42,18 @@ with sync_playwright() as p:
     page.locator('#check').click()
     assert page.locator('#result .grade-score').inner_text() == '10 / 10'
     page.locator('#next').click()
-    assert page.locator('#number').inner_text() == '#002'
+    assert page.locator('#number').get_attribute('data-index') == '2'
     page.reload(wait_until='domcontentloaded')
-    assert page.locator('#number').inner_text() == '#002'
+    assert page.locator('#number').get_attribute('data-index') == '2'
     page.locator('#reviewOpen').click()
     assert page.locator('#reviewDialog').is_visible()
     # Enter a recorded sentence and return to the previous study position.
     page.locator('#reviewBody .plus-tabs button').nth(2).click()
     page.locator('#reviewBody .plus-item button').first.click()
     assert page.locator('#reviewSession').is_visible()
-    assert page.locator('#number').inner_text() == '#001'
+    assert page.locator('#number').get_attribute('data-index') == '1'
     page.locator('#reviewExit').click()
-    assert page.locator('#number').inner_text() == '#002'
+    assert page.locator('#number').get_attribute('data-index') == '2'
     assert page.locator('#reviewSession').is_hidden()
     page.locator('#examOpen').click()
     assert page.locator('#examDialog').is_visible()
@@ -63,11 +63,11 @@ with sync_playwright() as p:
     page.set_viewport_size({'width':1280,'height':900})
     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
     page.wait_for_function("document.getElementById('pwaState').dataset.ready === 'true'", timeout=60000)
-    assert page.evaluate("async()=> (await (await caches.open('wfd-pwa-refactor-1.4.3')).keys()).length") == 217
+    assert page.evaluate("async()=> (await (await caches.open('wfd-pwa-refactor-1.5.0-ux9')).keys()).length") == 219
     context.set_offline(True)
     page.reload(wait_until='domcontentloaded')
     page.wait_for_function("Number.isFinite(document.getElementById('player').duration)")
-    assert page.locator('#number').inner_text() == '#002'
+    assert page.locator('#number').get_attribute('data-index') == '2'
     page.locator('#stop').click()
     page.wait_for_function("document.getElementById('player').currentTime > 0.1")
     assert not errors, errors

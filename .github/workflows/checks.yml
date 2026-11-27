@@ -27,6 +27,8 @@ jobs:
           test "$(wc -c < /tmp/wfd-range-bytes)" -eq 10
           python tests/browser_smoke.py
           python tests/browser_low_end.py
+          python tests/browser_typing.py
+          python tests/browser_review.py
 
   playback:
     runs-on: ubuntu-24.04
