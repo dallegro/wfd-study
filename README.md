@@ -191,7 +191,7 @@ Requires Node.js 22 for automated tests.
 Run locally:
 
 ```sh
-python3 -m http.server 8000
+python3 tests/http_server.py 8000
 ```
 
 Open `http://localhost:8000`.

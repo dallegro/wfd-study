@@ -1,6 +1,6 @@
 """Browser-engine regression checks; not a physical-device lock-screen test."""
 import os
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 
 URL = os.environ.get('WFD_TEST_URL', 'http://localhost:8000/')
 ENGINE = os.environ.get('WFD_BROWSER', 'chromium')
@@ -42,6 +42,21 @@ with sync_playwright() as p:
     errors = []
     page.on('pageerror', lambda error: errors.append(str(error)))
     page.goto(URL, wait_until='domcontentloaded')
+    page.evaluate("""() => {
+      const player=document.querySelector('#player');
+      window.mediaTrace=[];
+      const ranges=r=>Array.from({length:r.length},(_,i)=>[r.start(i),r.end(i)]);
+      window.mediaSnapshot=()=>({time:player.currentTime,duration:player.duration,paused:player.paused,seeking:player.seeking,ready:player.readyState,network:player.networkState,seekable:ranges(player.seekable),buffered:ranges(player.buffered),error:player.error?.message,status:document.querySelector('#status').textContent,native:window.nativePlayCalls,buffer:window.bufferPlayCalls});
+      for(const name of ['play','playing','pause','seeking','seeked','waiting','stalled','error','ended'])player.addEventListener(name,()=>window.mediaTrace.push({name,...window.mediaSnapshot()}));
+    }""")
+    def wait_complete():
+        try:
+            page.wait_for_function(complete, timeout=10000)
+        except PlaywrightTimeoutError:
+            print('Playback state:', page.evaluate('mediaSnapshot()'), flush=True)
+            print('Media events:', page.evaluate('mediaTrace.slice(-30)'), flush=True)
+            print('Page errors:', errors, flush=True)
+            raise
     page.wait_for_function("Number.isFinite(document.querySelector('#player').duration)")
     page.locator('#language').select_option('en')
     complete = "document.querySelector('#status').textContent === 'Word playback complete'"
@@ -51,20 +66,20 @@ with sync_playwright() as p:
         words.nth(3).click()
         page.wait_for_function('bufferPlayCalls.length === 1', timeout=10000)
         assert page.evaluate("bufferPlayCalls[0].category === 'playback' && bufferPlayCalls[0].duration > 0 && nativePlayCalls.length === 0")
-        page.wait_for_function(complete, timeout=10000)
+        wait_complete()
         words.nth(2).click()
         words.nth(4).click()
-        page.wait_for_function(complete, timeout=10000)
+        wait_complete()
         assert page.evaluate('bufferPlayCalls.length >= 3')
     else:
         # No fake output capability: first word must actually advance the native media timeline.
         assert not page.evaluate('realAudioSessionSupported'), 'Firefox now supports Audio Session; update this compatibility test'
         words.nth(3).click()
-        page.wait_for_function(complete, timeout=10000)
+        wait_complete()
         assert page.evaluate("nativePlayCalls.length === 1 && bufferPlayCalls.length === 0 && document.querySelector('#player').currentTime > nativePlayCalls[0].offset")
         words.nth(2).click()
         words.nth(4).click()
-        page.wait_for_function(complete, timeout=10000)
+        wait_complete()
         assert page.evaluate('nativePlayCalls.length === 3 && bufferPlayCalls.length === 0')
     assert page.locator('.clip-active').count() == 0
     assert page.evaluate("navigator.mediaSession.metadata == null")
@@ -74,14 +89,14 @@ with sync_playwright() as p:
     previous_calls = page.evaluate(f'{counter}.length')
     words.nth(3).click()
     page.wait_for_function(f'{counter}.length === {previous_calls + 1}', timeout=10000)
-    page.wait_for_function(complete, timeout=10000)
+    wait_complete()
     print(f'{ENGINE}: first word, rapid taps, foreground restoration via {counter} passed')
     # Unsupported category selects the original native player without forced warmup.
     page.evaluate("Object.defineProperty(navigator,'audioSession',{value:{get type(){return 'auto'},set type(v){}},configurable:true})")
     previous_calls=page.evaluate('nativePlayCalls.length')
     page.locator('#english [data-word-index]').nth(3).click()
     assert page.evaluate('nativePlayCalls.length') == previous_calls + 1
-    page.wait_for_function(complete, timeout=10000)
+    wait_complete()
     assert page.evaluate('document.querySelector("#player").currentTime > nativePlayCalls[nativePlayCalls.length-1].offset')
     page.locator('#stop').click()
     page.wait_for_function("document.querySelector('#player').currentTime > 0.1")
